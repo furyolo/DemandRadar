@@ -60,4 +60,14 @@ export class LlmClient {
     }
     return result.data;
   }
+
+  async generateText(messages: LlmMessage[]): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages
+    });
+    const content = response.choices[0]?.message.content;
+    if (!content) throw new LlmClientError('LLM response did not include message content');
+    return content;
+  }
 }

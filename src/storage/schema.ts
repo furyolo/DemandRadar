@@ -89,11 +89,19 @@ export const reports = sqliteTable('reports', {
   run_id: text('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
   report_type: text('report_type').notNull(),
   demand_id: text('demand_id'),
+  cadence: text('cadence').notNull().default('daily'),
+  locale: text('locale').notNull().default('en'),
+  canonical_report_id: text('canonical_report_id'),
+  period_start: text('period_start'),
+  period_end: text('period_end'),
   path: text('path').notNull(),
   title: text('title').notNull(),
-  generated_at: text('generated_at').notNull()
+  generated_at: text('generated_at').notNull(),
+  metadata: text('metadata').notNull().default('{}')
 }, (table) => [
-  index('idx_reports_run_id').on(table.run_id)
+  index('idx_reports_run_id').on(table.run_id),
+  index('idx_reports_cadence_locale_period').on(table.cadence, table.locale, table.period_start, table.period_end),
+  index('idx_reports_canonical_report_id').on(table.canonical_report_id)
 ]);
 
 export const createSchemaSql = `
@@ -176,9 +184,15 @@ CREATE TABLE IF NOT EXISTS reports (
   run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
   report_type TEXT NOT NULL,
   demand_id TEXT,
+  cadence TEXT NOT NULL DEFAULT 'daily',
+  locale TEXT NOT NULL DEFAULT 'en',
+  canonical_report_id TEXT,
+  period_start TEXT,
+  period_end TEXT,
   path TEXT NOT NULL,
   title TEXT NOT NULL,
-  generated_at TEXT NOT NULL
+  generated_at TEXT NOT NULL,
+  metadata TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_sources_run_id ON sources(run_id);
@@ -187,4 +201,6 @@ CREATE INDEX IF NOT EXISTS idx_demands_run_id ON demands(run_id);
 CREATE INDEX IF NOT EXISTS idx_market_evidence_demand_id ON market_evidence(demand_id);
 CREATE INDEX IF NOT EXISTS idx_scores_run_total ON scores(run_id, total_score DESC);
 CREATE INDEX IF NOT EXISTS idx_reports_run_id ON reports(run_id);
+CREATE INDEX IF NOT EXISTS idx_reports_cadence_locale_period ON reports(cadence, locale, period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_reports_canonical_report_id ON reports(canonical_report_id);
 `;

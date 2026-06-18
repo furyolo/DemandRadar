@@ -107,6 +107,55 @@ describe('DemandRadarRepository', () => {
       report_count: 1,
       demand_count: 1
     });
+    expect(repository.findReportArtifact({
+      cadence: 'daily',
+      locale: 'en',
+      periodStart: '2026-06-18',
+      periodEnd: '2026-06-18'
+    })?.path).toBe('reports/2026-06-18.md');
+
+    db.close();
+  });
+
+  it('finds localized and windowed report artifacts through repository APIs', () => {
+    const db = openDatabase(':memory:');
+    const repository = new DemandRadarRepository(db);
+    const baseReport = fixtureResult().reports[0];
+    if (!baseReport) throw new Error('Missing fixture report');
+    repository.savePipelineResult({
+      ...fixtureResult(),
+      reports: [
+        {
+          ...baseReport,
+          cadence: 'daily',
+          locale: 'en',
+          canonical_report_id: null,
+          period_start: '2026-06-18',
+          period_end: '2026-06-18',
+          metadata: {}
+        },
+        {
+          id: 'report-zh',
+          run_id: 'run-1',
+          report_type: 'daily',
+          demand_id: null,
+          cadence: 'daily',
+          locale: 'zh-CN',
+          canonical_report_id: 'report-1',
+          period_start: '2026-06-18',
+          period_end: '2026-06-18',
+          path: 'reports/2026-06-18.zh-CN.md',
+          title: 'DemandRadar Daily (zh-CN)',
+          generated_at: now,
+          metadata: {}
+        }
+      ]
+    });
+
+    expect(repository.findReportArtifact({ cadence: 'daily', locale: 'zh-CN', periodStart: '2026-06-18', periodEnd: '2026-06-18' })?.canonical_report_id).toBe('report-1');
+    expect(repository.listReportArtifactsForWindow({ cadence: 'daily', locale: 'en', periodStart: '2026-06-18', periodEnd: '2026-06-18' })).toHaveLength(1);
+    expect(repository.listScoresForRuns(['run-1'])).toHaveLength(1);
+    expect(repository.listEvidenceForRun('run-1')).toHaveLength(1);
 
     db.close();
   });
@@ -114,10 +163,11 @@ describe('DemandRadarRepository', () => {
   it('keeps database access behind ORM-backed storage APIs', async () => {
     const files = await sourceFiles(['src', 'scripts']);
     const offenders: string[] = [];
+    const forbidden = '.pre' + 'pare(';
 
     for (const file of files) {
       const content = await readFile(file, 'utf8');
-      if (content.includes('.prepare(')) offenders.push(file);
+      if (content.includes(forbidden)) offenders.push(file);
     }
 
     expect(offenders).toEqual([]);

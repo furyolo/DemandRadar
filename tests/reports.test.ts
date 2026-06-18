@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { generateDailyReport } from '../src/reports/dailyReport.js';
 import { generateMiniBrief } from '../src/reports/miniBrief.js';
-import type { Demand, MarketEvidence, Score } from '../src/pipeline/types.js';
+import { generateMonthlyReport } from '../src/reports/monthlyReport.js';
+import { translateMarkdownReport } from '../src/reports/translateReport.js';
+import { generateWeeklyReport } from '../src/reports/weeklyReport.js';
+import type { Demand, MarketEvidence, ReportArtifact, Score } from '../src/pipeline/types.js';
 
 const now = '2026-06-18T00:00:00.000Z';
 
@@ -41,6 +44,54 @@ describe('reports', () => {
     });
 
     expect(brief.path).toBe('briefs/2026-06-18/demand-cn-1.md');
+  });
+
+  it('renders weekly and monthly rollups with deterministic sections', () => {
+    const demand = fixtureDemand();
+    const evidence = [fixtureEvidence()];
+    const score = fixtureScore();
+    const dailyReport = fixtureReport();
+    const weekly = generateWeeklyReport({
+      periodStart: '2026-06-12',
+      periodEnd: '2026-06-18',
+      scores: [score, { ...score, id: 'score-2' }],
+      demands: [demand],
+      evidence,
+      dailyReports: [dailyReport]
+    });
+    const monthly = generateMonthlyReport({
+      month: '2026-06',
+      weeklyReports: [{ ...dailyReport, report_type: 'weekly', cadence: 'weekly', title: weekly.title, path: weekly.path }]
+    });
+
+    expect(weekly.path).toBe('reports/weekly/2026-06-12_to_2026-06-18.en.md');
+    expect(weekly.markdown).toContain('## Deduplicated Opportunities');
+    expect(weekly.markdown).toContain('https://example.com/report');
+    expect(monthly.path).toBe('reports/monthly/2026-06.en.md');
+    expect(monthly.markdown).toContain('## Recurring Themes');
+    expect(monthly.markdown).toContain('## Investment-Worthy Directions');
+  });
+
+  it('preserves product names and keeps source quotes in translation prompts', async () => {
+    const messages: unknown[] = [];
+    const translated = await translateMarkdownReport({
+      title: 'DemandRadar Daily',
+      markdown: '# Cursor API\n\n> manual research\n\nhttps://example.com/report',
+      terms: ['Cursor', 'API', 'GPT-4'],
+      llm: {
+        async generateText(input) {
+          messages.push(...input);
+          return '# Cursor API\n\n> manual research\n\nhttps://example.com/report';
+        }
+      }
+    });
+
+    const serialized = JSON.stringify(messages);
+    expect(serialized).toContain('Preserve URLs');
+    expect(serialized).toContain('product names');
+    expect(serialized).toContain('code identifiers');
+    expect(translated).toContain('https://example.com/report');
+    expect(translated).toContain('manual research');
   });
 });
 
@@ -89,5 +140,23 @@ function fixtureScore(): Score {
     explanation: 'source-backed',
     confidence: 0.8,
     generated_at: now
+  };
+}
+
+function fixtureReport(): ReportArtifact {
+  return {
+    id: 'report-1',
+    run_id: 'run-1',
+    report_type: 'daily',
+    demand_id: null,
+    cadence: 'daily',
+    locale: 'en',
+    canonical_report_id: null,
+    period_start: '2026-06-18',
+    period_end: '2026-06-18',
+    path: 'reports/2026-06-18.md',
+    title: 'DemandRadar Daily',
+    generated_at: now,
+    metadata: {}
   };
 }

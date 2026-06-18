@@ -91,14 +91,23 @@ export const ScoreSchema = z.object({
   generated_at: z.string().datetime()
 }).strict();
 
+export const ReportCadenceSchema = z.enum(['daily', 'weekly', 'monthly']);
+export const ReportLocaleSchema = z.enum(['en', 'zh-CN']);
+
 export const ReportArtifactSchema = z.object({
   id: z.string().min(1),
   run_id: z.string().min(1),
-  report_type: z.enum(['daily', 'mini_brief']),
+  report_type: z.enum(['daily', 'mini_brief', 'weekly', 'monthly']),
   demand_id: z.string().nullable().default(null),
+  cadence: ReportCadenceSchema.optional(),
+  locale: ReportLocaleSchema.optional(),
+  canonical_report_id: z.string().nullable().optional(),
+  period_start: z.string().nullable().optional(),
+  period_end: z.string().nullable().optional(),
   path: z.string().min(1),
   title: z.string().min(1),
-  generated_at: z.string().datetime()
+  generated_at: z.string().datetime(),
+  metadata: z.record(z.string(), z.unknown()).optional()
 }).strict();
 
 export const PipelineResultSchema = z.object({
@@ -118,5 +127,7 @@ export type Hotspot = z.infer<typeof HotspotSchema>;
 export type Demand = z.infer<typeof DemandSchema>;
 export type MarketEvidence = z.infer<typeof MarketEvidenceSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
+export type ReportCadence = z.infer<typeof ReportCadenceSchema>;
+export type ReportLocale = z.infer<typeof ReportLocaleSchema>;
 export type ReportArtifact = z.infer<typeof ReportArtifactSchema>;
 export type PipelineResult = z.infer<typeof PipelineResultSchema>;

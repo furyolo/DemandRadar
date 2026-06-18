@@ -24,7 +24,61 @@ describe('runPipeline', () => {
     });
 
     expect(result.reports.some((report) => report.path === 'reports/2026-06-18.md')).toBe(true);
+    expect(result.reports.some((report) => report.path === 'reports/2026-06-18.md' && report.cadence === 'daily' && report.locale === 'en')).toBe(true);
     expect(repository.getRunSummary(result.run.id).demand_count).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it('generates requested rollups and zh-CN variants', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'demandradar-'));
+    const db = openDatabase(':memory:');
+    const repository = new DemandRadarRepository(db);
+
+    const result = await runPipeline({
+      date: '2026-06-18',
+      limit: 10,
+      fixtureMode: true,
+      reportsDir: join(dir, 'reports'),
+      briefsDir: join(dir, 'briefs'),
+      repository,
+      fixtureData,
+      cadences: ['daily', 'weekly', 'monthly'],
+      locales: ['en', 'zh-CN'],
+      translationLlm: {
+        async generateText() {
+          return '# Translated zh-CN\n\nhttps://example.com/report';
+        }
+      }
+    });
+
+    expect(result.reports.some((report) => report.cadence === 'weekly' && report.locale === 'en')).toBe(true);
+    expect(result.reports.some((report) => report.cadence === 'monthly' && report.locale === 'en')).toBe(true);
+    expect(result.reports.some((report) => report.locale === 'zh-CN' && report.canonical_report_id)).toBe(true);
+    db.close();
+  });
+
+  it('keeps English artifact persists when zh-CN translation fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'demandradar-'));
+    const db = openDatabase(':memory:');
+    const repository = new DemandRadarRepository(db);
+
+    const result = await runPipeline({
+      date: '2026-06-18',
+      fixtureMode: true,
+      reportsDir: join(dir, 'reports'),
+      briefsDir: join(dir, 'briefs'),
+      repository,
+      fixtureData,
+      locales: ['en', 'zh-CN'],
+      translationLlm: {
+        async generateText() {
+          throw new Error('translation failed');
+        }
+      }
+    });
+
+    expect(result.reports.some((report) => report.path === 'reports/2026-06-18.md' && report.locale === 'en')).toBe(true);
+    expect(result.reports.some((report) => report.locale === 'zh-CN')).toBe(false);
     db.close();
   });
 });
