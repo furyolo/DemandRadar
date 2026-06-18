@@ -3,9 +3,9 @@ import { z } from 'zod';
 import demandFixture from './fixtures/llm-demand-response.json' with { type: 'json' };
 import marketFixture from './fixtures/llm-market-response.json' with { type: 'json' };
 import { extractDemands } from '../src/agents/demandExtractor.js';
-import { researchMarketEvidence } from '../src/agents/marketResearcher.js';
+import { researchMarketEvidence, researchMarketEvidenceBatch } from '../src/agents/marketResearcher.js';
 import { LlmClient } from '../src/integrations/llmClient.js';
-import type { Hotspot, Source } from '../src/pipeline/types.js';
+import { DemandSchema, type Hotspot, type Source } from '../src/pipeline/types.js';
 
 const now = '2026-06-18T00:00:00.000Z';
 
@@ -38,6 +38,29 @@ describe('LLM agents', () => {
       generatedAt: now
     });
     expect(evidence[0]?.source_url).toBe('https://example.com/report');
+  });
+
+  it('normalizes batch market evidence ids and foreign keys', async () => {
+    const baseDemand = DemandSchema.parse(demandFixture.demands[0]);
+    const demandA = { ...baseDemand, id: 'demand-a', run_id: 'run-a' };
+    const demandB = { ...baseDemand, id: 'demand-b', run_id: 'run-b' };
+    const evidence = await researchMarketEvidenceBatch({
+      demands: [demandA, demandB],
+      sources: [source()],
+      llm: new FakeLlm({
+        market_evidence: [
+          { ...marketFixture.market_evidence[0], id: 'llm-id', run_id: 'wrong-run', demand_id: 'demand-a' },
+          { ...marketFixture.market_evidence[0], id: 'llm-id', run_id: 'wrong-run', demand_id: 'demand-b' }
+        ]
+      }),
+      generatedAt: now
+    });
+
+    expect(evidence.map((item) => item.id)).toEqual([
+      'evidence-demand-a-1',
+      'evidence-demand-b-1'
+    ]);
+    expect(evidence.map((item) => item.run_id)).toEqual(['run-a', 'run-b']);
   });
 
   it('rejects malformed fixture JSON through schema validation', async () => {

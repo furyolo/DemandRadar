@@ -26,6 +26,22 @@ describe('reports', () => {
     expect(daily.markdown).toContain('## Top 3 Mini Briefs');
     expect(daily.markdown).toContain('https://example.com/report');
   });
+
+  it('uses demand id when Mini Brief title has no ASCII slug', () => {
+    const demand = {
+      ...fixtureDemand(),
+      id: 'demand-cn-1',
+      demand_statement: '需要一款自动跨平台痛点挖掘工具'
+    };
+    const brief = generateMiniBrief({
+      date: '2026-06-18',
+      demand,
+      evidence: [fixtureEvidence()],
+      score: fixtureScore()
+    });
+
+    expect(brief.path).toBe('briefs/2026-06-18/demand-cn-1.md');
+  });
 });
 
 function fixtureDemand(): Demand {

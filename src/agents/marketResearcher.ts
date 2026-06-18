@@ -14,24 +14,63 @@ export interface ResearchMarketEvidenceOptions {
   generatedAt: string;
 }
 
+export interface ResearchMarketEvidenceBatchOptions {
+  demands: Demand[];
+  sources: Source[];
+  llm: MarketResearchLlm;
+  generatedAt: string;
+}
+
 const MarketResearchResponseSchema = z.object({
   market_evidence: z.array(MarketEvidenceSchema)
 }).strict();
 
 export async function researchMarketEvidence(options: ResearchMarketEvidenceOptions): Promise<MarketEvidence[]> {
+  const evidence = await researchMarketEvidenceBatch({
+    demands: [options.demand],
+    sources: options.sources,
+    llm: options.llm,
+    generatedAt: options.generatedAt
+  });
+  return evidence.filter((item) => item.demand_id === options.demand.id);
+}
+
+export async function researchMarketEvidenceBatch(options: ResearchMarketEvidenceBatchOptions): Promise<MarketEvidence[]> {
+  if (options.demands.length === 0) return [];
   const response = await options.llm.generateJson(MarketResearchResponseSchema, [
     {
       role: 'system',
-      content: 'Return JSON only. Estimate TAM/SAM/SOM and market signals with source_url, search_query, time_window, confidence, and generated_at.'
+      content: [
+        'Return JSON only with a top-level "market_evidence" array.',
+        'Estimate TAM, SAM, SOM, competitors, willingness-to-pay signals, or community signals when source-backed evidence is available for each demand.',
+        'Every market_evidence object must exactly include: id, run_id, demand_id, evidence_type, value, source_url, search_query, time_window, confidence, generated_at.',
+        'evidence_type must be one of: tam, sam, som, competitor, willingness_to_pay, community_signal.',
+        'Use only the provided demand ids for demand_id. Use the provided run ids and generated_at value.',
+        'Return 2 to 5 market_evidence objects per demand when evidence is available. Return no objects for a demand rather than inventing evidence.',
+        'Do not include evidence without a valid source_url. Mark uncertainty through lower confidence.'
+      ].join(' ')
     },
     {
       role: 'user',
       content: JSON.stringify({
         generated_at: options.generatedAt,
-        demand: options.demand,
+        demands: options.demands,
         sources: options.sources
       })
     }
   ]);
-  return response.market_evidence.map((item) => MarketEvidenceSchema.parse(item));
+  const demandById = new Map(options.demands.map((demand) => [demand.id, demand]));
+  const evidenceCountByDemand = new Map<string, number>();
+  return response.market_evidence.map((item) => {
+    const demand = demandById.get(item.demand_id);
+    if (!demand) throw new Error(`Market evidence referenced unknown demand id: ${item.demand_id}`);
+    const index = (evidenceCountByDemand.get(demand.id) ?? 0) + 1;
+    evidenceCountByDemand.set(demand.id, index);
+    return MarketEvidenceSchema.parse({
+      ...item,
+      id: `evidence-${demand.id}-${index}`,
+      run_id: demand.run_id,
+      demand_id: demand.id
+    });
+  });
 }

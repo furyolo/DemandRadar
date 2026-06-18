@@ -14,6 +14,8 @@ export function registerRunCommand(program: Command): void {
     .option('--db <path>', 'SQLite database path', process.env.DEMANDRADAR_DB_PATH ?? 'data/demandradar.sqlite')
     .option('--reports-dir <path>', 'Reports output directory', process.env.REPORTS_DIR ?? 'reports')
     .option('--briefs-dir <path>', 'Briefs output directory', process.env.BRIEFS_DIR ?? 'briefs')
+    .option('--market-batch-size <number>', 'Demand count per market evidence LLM batch', '3')
+    .option('--market-concurrency <number>', 'Concurrent market evidence LLM batches', '3')
     .action(async (options) => {
       await runPipeline({
         date: options.date,
@@ -22,6 +24,8 @@ export function registerRunCommand(program: Command): void {
         dbPath: options.db,
         reportsDir: options.reportsDir,
         briefsDir: options.briefsDir,
+        marketEvidenceBatchSize: Number(options.marketBatchSize),
+        marketEvidenceConcurrency: Number(options.marketConcurrency),
         fixtureData: options.fixture ? fixtureData : undefined,
         smartSearchClient: options.fixture ? undefined : new SmartSearchClient(),
         llmClient: options.fixture ? undefined : new LlmClient()

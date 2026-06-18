@@ -1,0 +1,45 @@
+{
+  "id": "20260618-quick-market-evidence-micro-batch",
+  "description": "Implement market evidence micro-batch LLM research with default batchSize=3, concurrency=3, single-demand fallback, and an A/B comparison script.",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Add market evidence batch agent API",
+      "files": [
+        "src/agents/marketResearcher.ts"
+      ],
+      "criteria": [
+        "Expose researchMarketEvidenceBatch for multiple demands",
+        "Normalize ids and foreign keys in code",
+        "Preserve existing single-demand function"
+      ]
+    },
+    {
+      "id": "TASK-002",
+      "title": "Wire micro-batch execution into pipeline and CLI",
+      "files": [
+        "src/pipeline/runPipeline.ts",
+        "src/commands/run.ts"
+      ],
+      "criteria": [
+        "Use batchSize=3 and concurrency=3 by default",
+        "Fallback failed batches to single-demand calls",
+        "Expose CLI options for batch size and concurrency"
+      ]
+    },
+    {
+      "id": "TASK-003",
+      "title": "Add A/B comparison script and tests",
+      "files": [
+        "scripts/market-evidence-ab.ts",
+        "package.json",
+        "tests/agents.test.ts"
+      ],
+      "criteria": [
+        "Script compares single vs batch on the same DB run demands",
+        "Report timing, evidence counts, and failures",
+        "Typecheck and tests pass"
+      ]
+    }
+  ]
+}

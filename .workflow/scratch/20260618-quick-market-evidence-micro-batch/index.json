@@ -1,0 +1,25 @@
+{
+  "id": "20260618-quick-market-evidence-micro-batch",
+  "type": "quick",
+  "title": "Implement market evidence micro-batch LLM research with fallback and A/B script",
+  "status": "completed",
+  "created_at": "2026-06-18T04:40:00Z",
+  "updated_at": "2026-06-18T04:52:00Z",
+  "flags": {
+    "discuss": false,
+    "full": false
+  },
+  "plan": {
+    "task_ids": [
+      "TASK-001",
+      "TASK-002",
+      "TASK-003"
+    ],
+    "task_count": 3
+  },
+  "execution": {
+    "method": "local",
+    "tasks_completed": 3,
+    "tasks_total": 3
+  }
+}

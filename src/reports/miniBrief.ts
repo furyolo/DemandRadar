@@ -14,7 +14,7 @@ export interface RenderedMarkdown {
 }
 
 export function generateMiniBrief(input: MiniBriefInput): RenderedMarkdown {
-  const slug = slugify(input.demand.demand_statement);
+  const slug = slugify(input.demand.demand_statement, input.demand.id);
   const path = `briefs/${input.date}/${slug}.md`;
   const evidenceLines = input.evidence.map((item) => `- ${item.evidence_type}: ${item.value} (${item.source_url})`).join('\n');
   const markdown = `# ${input.demand.demand_statement}
@@ -49,6 +49,6 @@ ${input.score.total_score}/100 — ${input.score.explanation}
   return { path, markdown, title: input.demand.demand_statement };
 }
 
-function slugify(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'brief';
+function slugify(value: string, fallback: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || fallback;
 }

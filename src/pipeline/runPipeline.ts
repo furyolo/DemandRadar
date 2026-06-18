@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { extractDemands, type DemandExtractionLlm } from '../agents/demandExtractor.js';
-import { researchMarketEvidence, type MarketResearchLlm } from '../agents/marketResearcher.js';
+import { researchMarketEvidence, researchMarketEvidenceBatch, type MarketResearchLlm } from '../agents/marketResearcher.js';
 import { classifyHotspot } from '../cleaning/classify.js';
 import { dedupeHotspots } from '../cleaning/dedupe.js';
 import { normalizeSource } from '../cleaning/normalize.js';
@@ -24,10 +24,12 @@ export interface RunPipelineOptions {
   dbPath?: string;
   reportsDir?: string;
   briefsDir?: string;
-  smartSearchClient?: Pick<SmartSearchClient, 'search' | 'exaSearch'>;
+  smartSearchClient?: Pick<SmartSearchClient, 'exaSearch'>;
   llmClient?: DemandExtractionLlm & MarketResearchLlm;
   repository?: DemandRadarRepository;
   clock?: () => Date;
+  marketEvidenceBatchSize?: number;
+  marketEvidenceConcurrency?: number;
   fixtureData?: {
     sources: Source[];
     hotspots: Hotspot[];
@@ -42,6 +44,11 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
   const limit = options.limit ?? 100;
   const reportsDir = options.reportsDir ?? 'reports';
   const briefsDir = options.briefsDir ?? 'briefs';
+  const marketEvidenceBatchSize = normalizePositiveInteger(options.marketEvidenceBatchSize, 3);
+  const marketEvidenceConcurrency = normalizePositiveInteger(options.marketEvidenceConcurrency, 3);
+  const log = (message: string): void => {
+    if (!options.fixtureMode) console.error(`[DemandRadar] ${message}`);
+  };
 
   let db: DemandRadarDatabase | undefined;
   const repository = options.repository ?? (() => {
@@ -60,27 +67,37 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       metadata: { fixtureMode: options.fixtureMode ?? false }
     });
 
+    log(`Collecting hotspots with concurrent source queries, limit=${limit}`);
     const collected = await collect(options, runId, limit, now);
     const sources = collected.sources.map(normalizeSource);
     const hotspots = rankHotspots(dedupeHotspots(collected.hotspots.map((hotspot) => HotspotSchema.parse({
       ...hotspot,
       domain: classifyHotspot(hotspot)
     }))), limit);
+    if (hotspots.length === 0 && !options.fixtureMode) {
+      throw new Error('No hotspots collected from live Smart Search run');
+    }
 
-    const demands = options.fixtureData?.demands.map((demand) => ({ ...demand, run_id: runId })) ?? await extractDemands({
-      hotspots,
-      sources,
-      llm: requiredLlm(options),
-      generatedAt: now
-    });
-    const market_evidence = options.fixtureData?.market_evidence.map((item) => ({ ...item, run_id: runId })) ?? (await Promise.all(
-      demands.map((demand) => researchMarketEvidence({
-        demand,
-        sources,
+    log(`Collected ${sources.length} sources and ${hotspots.length} hotspots`);
+    const demands = options.fixtureData?.demands.map((demand) => ({ ...demand, run_id: runId })) ?? (await Promise.all(
+      hotspots.map((hotspot) => extractDemands({
+        hotspots: [hotspot],
+        sources: sources.filter((source) => hotspot.source_ids.includes(source.id)),
         llm: requiredLlm(options),
         generatedAt: now
       }))
     )).flat();
+    log(`Extracted ${demands.length} demands from ${hotspots.length} hotspots concurrently`);
+    const market_evidence = options.fixtureData?.market_evidence.map((item) => ({ ...item, run_id: runId })) ?? await researchMarketEvidenceInBatches({
+      demands,
+      sources,
+      llm: requiredLlm(options),
+      generatedAt: now,
+      batchSize: marketEvidenceBatchSize,
+      concurrency: marketEvidenceConcurrency,
+      onBatchFallback: (error) => log(`Market evidence batch fallback: ${error instanceof Error ? error.message : String(error)}`)
+    });
+    log(`Researched ${market_evidence.length} market evidence items for ${demands.length} demands with batchSize=${marketEvidenceBatchSize}, concurrency=${marketEvidenceConcurrency}`);
 
     const scores = rankDemandScores(demands.map((demand) => {
       const evidence = market_evidence.filter((item) => item.demand_id === demand.id);
@@ -96,6 +113,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       scores,
       generatedAt: now
     });
+    log(`Wrote ${reportArtifacts.length} report artifacts`);
 
     const result = PipelineResultSchema.parse({
       run,
@@ -111,6 +129,68 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
   } finally {
     db?.close();
   }
+}
+
+async function researchMarketEvidenceInBatches(input: {
+  demands: Demand[];
+  sources: Source[];
+  llm: DemandExtractionLlm & MarketResearchLlm;
+  generatedAt: string;
+  batchSize: number;
+  concurrency: number;
+  onBatchFallback?: (error: unknown) => void;
+}): Promise<MarketEvidence[]> {
+  const batches = chunk(input.demands, input.batchSize);
+  const results = await runWithConcurrency(batches, input.concurrency, async (batch) => {
+    try {
+      return await researchMarketEvidenceBatch({
+        demands: batch,
+        sources: input.sources,
+        llm: input.llm,
+        generatedAt: input.generatedAt
+      });
+    } catch (error) {
+      input.onBatchFallback?.(error);
+      return (await Promise.all(batch.map((demand) => researchMarketEvidence({
+        demand,
+        sources: input.sources,
+        llm: input.llm,
+        generatedAt: input.generatedAt
+      })))).flat();
+    }
+  });
+  return results.flat();
+}
+
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index] as T, index);
+    }
+  }));
+  return results;
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isInteger(value) || value <= 0) return fallback;
+  return value;
 }
 
 async function collect(options: RunPipelineOptions, runId: string, limit: number, generatedAt: string): Promise<{ sources: Source[]; hotspots: Hotspot[] }> {

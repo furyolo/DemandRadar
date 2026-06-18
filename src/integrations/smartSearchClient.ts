@@ -38,11 +38,11 @@ export class SmartSearchClient {
   }
 
   search(query: string, options: SmartSearchQueryOptions = {}): Promise<SmartSearchCommandResult> {
-    return this.run(['search', query, '--json', '--limit', String(options.limit ?? 10)], { query });
+    return this.run(['search', query, '--format', 'json'], { query });
   }
 
   exaSearch(query: string, options: SmartSearchQueryOptions = {}): Promise<SmartSearchCommandResult> {
-    return this.run(['exa-search', query, '--json', '--num-results', String(options.limit ?? 10)], { query });
+    return this.run(['exa-search', query, '--format', 'json', '--num-results', String(options.limit ?? 10), '--include-highlights'], { query });
   }
 
   fetch(url: string): Promise<SmartSearchCommandResult> {
@@ -80,6 +80,11 @@ export class SmartSearchClient {
         clearTimeout(timer);
         const completed_at = new Date().toISOString();
         const parsed = parseMaybeJson(stdout);
+        if (exitCode !== 0) {
+          const detail = stderr.trim() || stdout.trim() || `exit code ${exitCode ?? -1}`;
+          reject(new Error(`Smart Search command failed: ${this.bin} ${args.join(' ')}\n${detail}`));
+          return;
+        }
         resolve({
           command: [this.bin, ...args],
           ...metadata,

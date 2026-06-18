@@ -6,7 +6,7 @@ import { buildSourceQueries } from './sourceQueries.js';
 
 export interface CollectHotspotsOptions {
   runId: string;
-  client: Pick<SmartSearchClient, 'search' | 'exaSearch'>;
+  client: Pick<SmartSearchClient, 'exaSearch'>;
   limit?: number;
   timeWindowDays?: number;
   generatedAt?: string;
@@ -16,13 +16,20 @@ export async function collectHotspots(options: CollectHotspotsOptions): Promise<
   const limit = options.limit ?? 100;
   const timeWindowDays = options.timeWindowDays ?? 30;
   const generatedAt = options.generatedAt ?? new Date().toISOString();
-  const perQueryLimit = Math.max(3, Math.ceil(limit / buildSourceQueries(timeWindowDays).length));
+  const sourceQueries = buildSourceQueries(timeWindowDays);
+  const perQueryLimit = Math.max(3, Math.ceil(limit / sourceQueries.length));
   const sources: Source[] = [];
   const hotspots: Hotspot[] = [];
 
-  for (const sourceQuery of buildSourceQueries(timeWindowDays)) {
-    const result = await options.client.search(sourceQuery.query, { limit: perQueryLimit, timeWindowDays });
-    const records = extractRecords(result).slice(0, perQueryLimit);
+  const results = await Promise.all(sourceQueries.map(async (sourceQuery) => {
+    const result = await options.client.exaSearch(sourceQuery.query, { limit: perQueryLimit, timeWindowDays });
+    return {
+      sourceQuery,
+      records: extractRecords(result).slice(0, perQueryLimit)
+    };
+  }));
+
+  for (const { sourceQuery, records } of results) {
     for (const record of records) {
       const source = SourceSchema.parse({
         id: `source-${randomUUID()}`,
@@ -84,7 +91,7 @@ function extractRecords(result: SmartSearchCommandResult): SearchRecord[] {
     return [{
       url,
       title,
-      snippet: stringValue(item.snippet) ?? stringValue(item.text) ?? stringValue(item.summary) ?? '',
+      snippet: stringValue(item.snippet) ?? stringValue(item.text) ?? stringValue(item.summary) ?? highlightsValue(item.highlights) ?? '',
       source_name: stringValue(item.source) ?? hostname(url),
       published_at: stringValue(item.published_at) ?? stringValue(item.publishedDate) ?? null,
       raw: item
@@ -98,6 +105,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function highlightsValue(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const highlights = value.filter((item): item is string => typeof item === 'string' && item.length > 0);
+  return highlights.length > 0 ? highlights.join('\n\n') : undefined;
 }
 
 function hostname(url: string): string {

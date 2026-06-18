@@ -17,7 +17,8 @@
     "test:e2e": "vitest run tests/e2e.fixture.test.ts",
     "smoke:live": "RUN_LIVE_SMOKE=1 vitest run tests/live-smoke.test.ts",
     "demandradar": "tsx src/cli.ts",
-    "demandradar:run": "tsx src/cli.ts run"
+    "demandradar:run": "tsx src/cli.ts run",
+    "market:ab": "tsx scripts/market-evidence-ab.ts"
   },
   "dependencies": {
     "@konbakuyomu/smart-search": "^0.1.14",
