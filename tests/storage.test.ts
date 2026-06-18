@@ -1,3 +1,5 @@
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openDatabase } from '../src/storage/database.js';
 import { DemandRadarRepository } from '../src/storage/repositories.js';
@@ -108,4 +110,31 @@ describe('DemandRadarRepository', () => {
 
     db.close();
   });
+
+  it('keeps database access behind ORM-backed storage APIs', async () => {
+    const files = await sourceFiles(['src', 'scripts']);
+    const offenders: string[] = [];
+
+    for (const file of files) {
+      const content = await readFile(file, 'utf8');
+      if (content.includes('.prepare(')) offenders.push(file);
+    }
+
+    expect(offenders).toEqual([]);
+  });
 });
+
+async function sourceFiles(paths: string[]): Promise<string[]> {
+  const files: string[] = [];
+  for (const path of paths) {
+    for (const entry of await readdir(path, { withFileTypes: true })) {
+      const fullPath = join(path, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...await sourceFiles([fullPath]));
+      } else if (/\.(ts|tsx|js)$/.test(entry.name)) {
+        files.push(fullPath);
+      }
+    }
+  }
+  return files;
+}

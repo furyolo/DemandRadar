@@ -1,0 +1,126 @@
+{
+  "$schema": "context-package/1.0",
+  "source": {
+    "type": "brainstorm",
+    "artifact_id": "BRN-ORM-001",
+    "session_path": "scratch/20260618-brainstorm-orm-framework-selection",
+    "generated_at": "2026-06-18T05:05:00Z"
+  },
+  "requirements": [
+    {
+      "id": "F-001",
+      "title": "ORM Selection",
+      "description": "Select and document the ORM framework for the project.",
+      "priority": "must",
+      "ref": "guidance-specification.md#10-feature-decomposition"
+    },
+    {
+      "id": "F-002",
+      "title": "Migration Strategy",
+      "description": "Define how current schema and repository methods move to ORM without breaking CLI runs.",
+      "priority": "must",
+      "ref": "guidance-specification.md#10-feature-decomposition"
+    },
+    {
+      "id": "F-003",
+      "title": "Database Access Rule",
+      "description": "Establish future rule that database operations go through ORM/repository abstractions.",
+      "priority": "must",
+      "ref": "guidance-specification.md#10-feature-decomposition"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "ORM-001",
+      "area": "database",
+      "constraint": "Future database operations MUST use an ORM/query-builder abstraction instead of hand-written repository SQL.",
+      "rationale": "User explicitly required ORM-only future database operations.",
+      "status": "locked",
+      "ref": "guidance-specification.md#4-architecture-decisions"
+    },
+    {
+      "id": "ORM-002",
+      "area": "database",
+      "constraint": "Drizzle ORM SHOULD be the default recommendation for DemandRadar.",
+      "rationale": "Best fit for TypeScript, SQLite, and current better-sqlite3 usage.",
+      "status": "recommended",
+      "ref": "guidance-specification.md#4-architecture-decisions"
+    },
+    {
+      "id": "ORM-005",
+      "area": "database",
+      "constraint": "Raw SQL MUST be isolated behind explicit escape-hatch helpers and MUST NOT appear in feature/pipeline code.",
+      "rationale": "Preserves ORM-only rule while allowing exceptional optimized SQL.",
+      "status": "locked",
+      "ref": "guidance-specification.md#4-architecture-decisions"
+    }
+  ],
+  "domain": {
+    "problem_statement": "DemandRadar needs a TypeScript ORM strategy for its SQLite storage layer.",
+    "audience": "DemandRadar maintainers",
+    "terminology": [
+      {
+        "term": "Repository boundary",
+        "definition": "Current class that hides SQL statements from pipeline and CLI commands.",
+        "ref": "guidance-specification.md#2-concepts-terminology"
+      },
+      {
+        "term": "ORM",
+        "definition": "TypeScript database abstraction used for schema, queries, transactions, and migrations.",
+        "ref": "guidance-specification.md#2-concepts-terminology"
+      }
+    ]
+  },
+  "non_goals": [
+    {
+      "title": "No implementation in brainstorm",
+      "rationale": "The user requested research and decision guidance.",
+      "ref": "guidance-specification.md#3-non-goals"
+    }
+  ],
+  "insights": [
+    {
+      "role": "data-architect",
+      "area": "schema",
+      "summary": "Drizzle should replace string SQL schema while preserving foreign keys and indexes.",
+      "ref": "data-architect/analysis.md#3-cross-cutting-foundations"
+    },
+    {
+      "role": "system-architect",
+      "area": "architecture",
+      "summary": "ORM migration should remain storage-local behind DemandRadarRepository.",
+      "ref": "system-architect/analysis.md#3-cross-cutting-foundations"
+    },
+    {
+      "role": "test-strategist",
+      "area": "testing",
+      "summary": "Migration requires parity tests for JSON columns, transactions, foreign keys, and read APIs.",
+      "ref": "test-strategist/analysis.md#3-cross-cutting-foundations"
+    }
+  ],
+  "open_questions": [
+    {
+      "area": "migration tooling",
+      "question": "Should implementation use drizzle-kit migrations immediately or first add schema-only Drizzle queries behind the existing schema bootstrap?",
+      "ref": "data-architect/analysis.md#5-outstanding-todos"
+    }
+  ],
+  "references": [
+    {
+      "type": "guidance",
+      "path": "guidance-specification.md"
+    },
+    {
+      "type": "role-analysis",
+      "path": "data-architect/analysis.md"
+    },
+    {
+      "type": "role-analysis",
+      "path": "system-architect/analysis.md"
+    },
+    {
+      "type": "role-analysis",
+      "path": "test-strategist/analysis.md"
+    }
+  ]
+}

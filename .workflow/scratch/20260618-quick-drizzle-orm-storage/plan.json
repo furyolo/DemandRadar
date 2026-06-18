@@ -1,0 +1,47 @@
+{
+  "id": "20260618-quick-drizzle-orm-storage",
+  "description": "Use recommended Drizzle ORM for DemandRadar storage while preserving repository boundaries.",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Add Drizzle schema and database wrapper",
+      "files": [
+        "src/storage/schema.ts",
+        "src/storage/database.ts",
+        "drizzle.config.ts",
+        "package.json"
+      ],
+      "criteria": [
+        "Drizzle schema defines all existing tables, indexes, and foreign keys",
+        "openDatabase exposes an ORM-backed database while preserving close() usage",
+        "Storage migration escape hatch stays isolated in storage"
+      ]
+    },
+    {
+      "id": "TASK-002",
+      "title": "Migrate repository operations to Drizzle",
+      "files": [
+        "src/storage/repositories.ts"
+      ],
+      "criteria": [
+        "Repository writes and reads use Drizzle ORM APIs",
+        "Existing repository public methods keep behavior",
+        "No db.prepare remains in repository"
+      ]
+    },
+    {
+      "id": "TASK-003",
+      "title": "Update scripts/tests and verify",
+      "files": [
+        "scripts/market-evidence-ab.ts",
+        "tests/storage.test.ts",
+        "tests/cli.test.ts"
+      ],
+      "criteria": [
+        "A/B script uses repository/ORM access instead of direct SQL",
+        "Tests cover ORM-backed round trip and access guard",
+        "typecheck, tests, and fixture E2E pass"
+      ]
+    }
+  ]
+}

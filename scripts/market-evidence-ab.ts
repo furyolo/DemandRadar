@@ -3,6 +3,7 @@ import { loadDemandRadarEnv } from '../src/config/env.js';
 import { LlmClient } from '../src/integrations/llmClient.js';
 import { researchMarketEvidence, researchMarketEvidenceBatch } from '../src/agents/marketResearcher.js';
 import { openDatabase } from '../src/storage/database.js';
+import { DemandRadarRepository } from '../src/storage/repositories.js';
 import type { Demand, MarketEvidence, Source } from '../src/pipeline/types.js';
 
 interface Args {
@@ -26,11 +27,12 @@ loadDemandRadarEnv();
 
 const args = parseArgs(process.argv.slice(2));
 const db = openDatabase(args.db);
+const repository = new DemandRadarRepository(db);
 
 try {
-  const runId = args.run ?? latestRunId();
-  const demands = loadDemands(runId).slice(0, args.limit);
-  const sources = loadSources(runId);
+  const runId = args.run ?? latestRunId(repository);
+  const demands = repository.listDemands(runId, args.limit);
+  const sources = repository.listSources(runId);
   if (demands.length === 0) throw new Error(`No demands found for run ${runId}`);
   if (sources.length === 0) throw new Error(`No sources found for run ${runId}`);
 
@@ -132,29 +134,10 @@ function collectSettled(settled: PromiseSettledResult<MarketEvidence[]>[]): { ev
   return { evidence, failures };
 }
 
-function latestRunId(): string {
-  const row = db.prepare('SELECT id FROM runs ORDER BY started_at DESC LIMIT 1').get() as { id: string } | undefined;
-  if (!row) throw new Error('No runs found in database');
-  return row.id;
-}
-
-function loadDemands(runId: string): Demand[] {
-  const rows = db.prepare('SELECT * FROM demands WHERE run_id = ? ORDER BY id LIMIT ?').all(runId, args.limit) as Array<
-    Omit<Demand, 'current_alternatives' | 'citations'> & { current_alternatives: string; citations: string }
-  >;
-  return rows.map((row) => ({
-    ...row,
-    current_alternatives: JSON.parse(row.current_alternatives) as string[],
-    citations: JSON.parse(row.citations) as Demand['citations']
-  }));
-}
-
-function loadSources(runId: string): Source[] {
-  const rows = db.prepare('SELECT * FROM sources WHERE run_id = ? ORDER BY id').all(runId) as Array<Omit<Source, 'raw'> & { raw: string }>;
-  return rows.map((row) => ({
-    ...row,
-    raw: JSON.parse(row.raw) as Source['raw']
-  }));
+function latestRunId(repository: DemandRadarRepository): string {
+  const runId = repository.getLatestRunId();
+  if (!runId) throw new Error('No runs found in database');
+  return runId;
 }
 
 async function runWithConcurrency<T, R>(

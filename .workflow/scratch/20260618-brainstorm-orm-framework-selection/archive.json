@@ -1,0 +1,35 @@
+{
+  "$schema": "session-archive/1.0",
+  "session_id": "BRN-ORM-001",
+  "session_type": "brainstorm",
+  "session_path": "scratch/20260618-brainstorm-orm-framework-selection",
+  "lifecycle": {
+    "status": "sealed",
+    "sealed_at": "2026-06-18T05:05:00Z",
+    "archived_at": null,
+    "linked_milestone": null
+  },
+  "content_refs": [
+    {
+      "type": "context-package",
+      "path": "context-package.json"
+    },
+    {
+      "type": "role-analysis",
+      "path": "data-architect/analysis.md"
+    },
+    {
+      "type": "role-analysis",
+      "path": "system-architect/analysis.md"
+    },
+    {
+      "type": "role-analysis",
+      "path": "test-strategist/analysis.md"
+    }
+  ],
+  "extraction": {
+    "harvested": false,
+    "reason": "manual-brainstorm-no-auto-harvest"
+  },
+  "pruned": null
+}
