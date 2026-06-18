@@ -160,3 +160,4 @@ env/
 .claude/settings.local.json
 .mcp*.local.json
 *.vsix
+.ace-tool/

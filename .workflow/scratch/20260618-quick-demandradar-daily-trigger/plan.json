@@ -1,0 +1,31 @@
+{
+  "id": "20260618-quick-demandradar-daily-trigger",
+  "description": "Create a global DemandRadar daily skill and project AGENTS.md keyword trigger instructions.",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Create global demandradar-daily skill",
+      "files": [
+        "/home/andy/.agents/skills/demandradar-daily/SKILL.md",
+        "/home/andy/.agents/skills/demandradar-daily/agents/openai.yaml"
+      ],
+      "criteria": [
+        "Skill triggers on $demandradar-daily and Chinese/English report requests",
+        "Skill documents live pipeline execution and verification steps",
+        "Skill validates with quick_validate.py"
+      ]
+    },
+    {
+      "id": "TASK-002",
+      "title": "Add project AGENTS.md trigger instructions",
+      "files": [
+        "AGENTS.md"
+      ],
+      "criteria": [
+        "Project instructions list trigger phrases",
+        "Instructions require live pipeline, no secret printing, and CLI readback",
+        "Instructions preserve ORM-backed database rule"
+      ]
+    }
+  ]
+}
