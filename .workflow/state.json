@@ -1,0 +1,30 @@
+{
+  "version": "3.1",
+  "project_name": "DemandRadar",
+  "status": "idle",
+  "current_milestone": null,
+  "current_task_id": null,
+  "milestones": [],
+  "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
+  "artifacts": [
+    { "path": ".workflow/project.md", "type": "project_description", "created_at": "2026-06-18" },
+    { "path": "projectBrief.md", "type": "project_brief", "created_at": "2026-06-18" }
+  ],
+  "last_updated": "2026-06-18T00:00:00Z",
+  "accumulated_context": {
+    "key_decisions": [
+      "TypeScript as primary language",
+      "Reuse-first engineering discipline",
+      "MVP CLI-only, no Web UI",
+      "Chinese internet sources priority"
+    ],
+    "blockers": [],
+    "deferred": [
+      "Web Dashboard (Phase 2)",
+      "Demand prediction (Phase 3)",
+      "Team collaboration (Phase 3)"
+    ]
+  },
+  "transition_history": [],
+  "milestone_history": []
+}
