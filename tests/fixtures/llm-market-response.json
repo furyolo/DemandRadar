@@ -1,0 +1,16 @@
+{
+  "market_evidence": [
+    {
+      "id": "evidence-1",
+      "run_id": "run-1",
+      "demand_id": "demand-1",
+      "evidence_type": "tam",
+      "value": "Large audience of product builders and startup operators",
+      "source_url": "https://example.com/report",
+      "search_query": "product builders market size",
+      "time_window": "30d",
+      "confidence": 0.72,
+      "generated_at": "2026-06-18T00:00:00.000Z"
+    }
+  ]
+}

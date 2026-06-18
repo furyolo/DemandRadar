@@ -1,0 +1,16 @@
+{
+  "market_evidence": [
+    {
+      "id": "evidence-1",
+      "run_id": "fixture-run",
+      "demand_id": "demand-1",
+      "evidence_type": "tam",
+      "value": "Large market of builders and product teams",
+      "source_url": "https://example.com/report",
+      "search_query": "indie hacker product research market",
+      "time_window": "30d",
+      "confidence": 0.72,
+      "generated_at": "2026-06-18T00:00:00.000Z"
+    }
+  ]
+}

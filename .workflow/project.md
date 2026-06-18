@@ -38,7 +38,7 @@ DemandRadar（需求雷达）是一个自动化需求挖掘与商业评估系统
 ## Context
 
 项目源于对现有需求挖掘工具的两点观察：
-1. 现有竞品几乎全部聚焦英文社区（Reddit/HN/PH），中文互联网的需求挖掘是蓝海
+1. 英文互联网社区（Reddit/HN/PH/GitHub/Indie Hackers）拥有更成熟的公开讨论、竞品信号和可复用案例，适合作为 MVP 的首要数据源
 2. 每个模块都有成熟开源项目可参考或复用，不需要从零开始——详见 `projectBrief.md` 附录 A
 
 ## Constraints
@@ -46,7 +46,7 @@ DemandRadar（需求雷达）是一个自动化需求挖掘与商业评估系统
 - **工程纪律**：每个模块开发前必须完成一轮市场调研，确认无可复用项目后才从零开发
 - **技术栈**：TypeScript / Node.js，匹配 Smart Search 和 Maestro 的 npm 生态
 - **数据源**：通过 Smart Search CLI 全网检索，不自行开发爬虫
-- **语言覆盖**：优先中文互联网源（知乎/即刻/小红书/微博/36Kr），差异化于英文竞品
+- **语言覆盖**：优先英文互联网源（Reddit/HN/PH/GitHub/Indie Hackers 等），中文源作为补充和后续差异化扩展
 
 ## Tech Stack
 
@@ -54,7 +54,7 @@ DemandRadar（需求雷达）是一个自动化需求挖掘与商业评估系统
 - **Runtime**: Node.js 24+
 - **Storage**: SQLite (better-sqlite3) + Markdown 文件
 - **Scheduling**: node-cron / systemd timer
-- **Key Dependencies**: @konbakuyomu/smart-search (采集), maestro-flow (编排), @anthropic-ai/sdk (LLM)
+- **Key Dependencies**: @konbakuyomu/smart-search (采集), maestro-flow (编排), openai / OpenAI-compatible LLM client (分析生成)
 
 ## Key Decisions
 
@@ -63,7 +63,7 @@ DemandRadar（需求雷达）是一个自动化需求挖掘与商业评估系统
 | TypeScript over Python | Smart Search 和 Maestro 均为 npm 包，同运行时可直接复用内部能力；MCP SDK TypeScript 版最成熟 | 已确定 |
 | 优先复用，拒绝重造 | 市场调研发现每个子模块都有成熟开源参考，见 projectBrief.md 附录 A | 已确定 |
 | MVP 仅 CLI，不做 Web UI | 第一阶段验证 pipeline 可行性，Web Dashboard 分散精力 | 已确定 |
-| 中文互联网优先 | 竞品几乎全聚焦英文社区，中文源是蓝海差异化切入点 | 已确定 |
+| 英文互联网优先 | MVP 需要先覆盖公开讨论密度高、工具和竞品信号更成熟的英文源；中文源后续作为差异化扩展 | 已确定 |
 
 ## Stakeholders
 
@@ -72,4 +72,4 @@ DemandRadar（需求雷达）是一个自动化需求挖掘与商业评估系统
 - 创业者 / 投资人 — 早期赛道机会发现
 
 ---
-*Last updated: 2026-06-18 after initialization*
+*Last updated: 2026-06-18 after source-priority correction*

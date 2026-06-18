@@ -1,0 +1,18 @@
+{
+  "scoring": {
+    "weights": {
+      "demand_strength": 0.3,
+      "market_size": 0.25,
+      "willingness_to_pay": 0.25,
+      "feasibility": 0.2
+    }
+  },
+  "hotspotDomains": [
+    "technology",
+    "consumer",
+    "policy",
+    "social_events",
+    "global_expansion",
+    "ai_applications"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "demands": [
+    {
+      "id": "demand-1",
+      "run_id": "fixture-run",
+      "hotspot_id": "hotspot-1",
+      "user_profile": "Indie hacker",
+      "pain_point": "Opportunity research is slow and unsystematic",
+      "current_alternatives": ["Manual search", "Spreadsheets"],
+      "demand_statement": "Automate source-backed opportunity research",
+      "citations": [
+        {
+          "source_url": "https://example.com/story",
+          "quote": "manual collection"
+        }
+      ],
+      "confidence": 0.85,
+      "generated_at": "2026-06-18T00:00:00.000Z"
+    }
+  ]
+}

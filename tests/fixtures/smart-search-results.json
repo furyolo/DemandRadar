@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "title": "Developers complain about AI coding review bottlenecks",
+      "url": "https://news.ycombinator.com/item?id=1",
+      "snippet": "Teams want faster review automation with source-backed evidence.",
+      "source": "Hacker News"
+    },
+    {
+      "title": "New privacy policy creates compliance work for startups",
+      "url": "https://example.com/policy",
+      "snippet": "Small teams need a lightweight way to track policy obligations.",
+      "source": "Example Policy"
+    },
+    {
+      "title": "Cross border sellers struggle with localization workflows",
+      "url": "https://example.com/global",
+      "snippet": "Operators need better expansion checklists and market evidence.",
+      "source": "Example Global"
+    }
+  ]
+}

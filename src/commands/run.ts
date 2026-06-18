@@ -1,0 +1,30 @@
+import type { Command } from 'commander';
+import { LlmClient } from '../integrations/llmClient.js';
+import { SmartSearchClient } from '../integrations/smartSearchClient.js';
+import { fixtureData } from '../pipeline/fixtureData.js';
+import { runPipeline } from '../pipeline/runPipeline.js';
+
+export function registerRunCommand(program: Command): void {
+  program
+    .command('run')
+    .description('Run the DemandRadar pipeline.')
+    .option('--date <date>', 'Report date', new Date().toISOString().slice(0, 10))
+    .option('--fixture', 'Run with injected fixture mode flag')
+    .option('--limit <number>', 'Top hotspot limit', '100')
+    .option('--db <path>', 'SQLite database path', process.env.DEMANDRADAR_DB_PATH ?? 'data/demandradar.sqlite')
+    .option('--reports-dir <path>', 'Reports output directory', process.env.REPORTS_DIR ?? 'reports')
+    .option('--briefs-dir <path>', 'Briefs output directory', process.env.BRIEFS_DIR ?? 'briefs')
+    .action(async (options) => {
+      await runPipeline({
+        date: options.date,
+        limit: Number(options.limit),
+        fixtureMode: Boolean(options.fixture),
+        dbPath: options.db,
+        reportsDir: options.reportsDir,
+        briefsDir: options.briefsDir,
+        fixtureData: options.fixture ? fixtureData : undefined,
+        smartSearchClient: options.fixture ? undefined : new SmartSearchClient(),
+        llmClient: options.fixture ? undefined : new LlmClient()
+      });
+    });
+}

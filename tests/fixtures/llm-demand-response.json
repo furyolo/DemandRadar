@@ -1,0 +1,21 @@
+{
+  "demands": [
+    {
+      "id": "demand-1",
+      "run_id": "run-1",
+      "hotspot_id": "hotspot-1",
+      "user_profile": "Product builder",
+      "pain_point": "Hard to convert noisy signals into validated product briefs",
+      "current_alternatives": ["Manual reading", "Spreadsheets"],
+      "demand_statement": "Automate demand mining from recent internet signals",
+      "citations": [
+        {
+          "source_url": "https://example.com/story",
+          "quote": "builders are tracking signals manually"
+        }
+      ],
+      "confidence": 0.82,
+      "generated_at": "2026-06-18T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "sources": [
+    {
+      "id": "source-1",
+      "run_id": "fixture-run",
+      "source_url": "https://example.com/story",
+      "title": "Teams need faster opportunity research",
+      "snippet": "Builders manually collect signals across communities.",
+      "source_name": "Example",
+      "published_at": null,
+      "search_query": "opportunity research",
+      "time_window": "30d",
+      "raw": {}
+    }
+  ],
+  "hotspots": [
+    {
+      "id": "hotspot-1",
+      "run_id": "fixture-run",
+      "title": "Teams need faster opportunity research",
+      "summary": "Builders manually collect signals across communities.",
+      "domain": "technology",
+      "source_ids": ["source-1"],
+      "canonical_url": "https://example.com/story",
+      "heat_score": 88,
+      "search_query": "opportunity research",
+      "time_window": "30d",
+      "generated_at": "2026-06-18T00:00:00.000Z"
+    }
+  ]
+}
