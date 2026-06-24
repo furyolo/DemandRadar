@@ -9,6 +9,7 @@ import { normalizeSource } from '../cleaning/normalize.js';
 import { rankHotspots } from '../cleaning/rankHotspots.js';
 import type { SmartSearchClient } from '../integrations/smartSearchClient.js';
 import { collectHotspots } from '../ingest/hotspotCollector.js';
+import { collectRedNoteHotspots } from '../ingest/rednoteCollector.js';
 import type { Demand, Hotspot, MarketEvidence, PipelineResult, ReportArtifact, ReportCadence, ReportLocale, Score, Source } from './types.js';
 import { HotspotSchema, PipelineResultSchema, ReportArtifactSchema, RunSchema } from './types.js';
 import { generateDailyReport } from '../reports/dailyReport.js';
@@ -43,6 +44,8 @@ export interface RunPipelineOptions {
     demands: Demand[];
     market_evidence: MarketEvidence[];
   };
+  redNoteRecords?: unknown;
+  redNoteSearchQuery?: string;
 }
 
 export async function runPipeline(options: RunPipelineOptions): Promise<PipelineResult> {
@@ -210,16 +213,39 @@ async function collect(options: RunPipelineOptions, runId: string, limit: number
       hotspots: options.fixtureData.hotspots.map((hotspot) => ({ ...hotspot, run_id: runId, generated_at: generatedAt }))
     };
   }
-  if (!options.smartSearchClient) {
-    throw new Error('runPipeline requires smartSearchClient unless fixtureData is provided');
+
+  const collected = { sources: [] as Source[], hotspots: [] as Hotspot[] };
+
+  if (options.smartSearchClient) {
+    const web = await collectHotspots({
+      runId,
+      client: options.smartSearchClient,
+      limit,
+      timeWindowDays: 30,
+      generatedAt
+    });
+    collected.sources.push(...web.sources);
+    collected.hotspots.push(...web.hotspots);
   }
-  return collectHotspots({
-    runId,
-    client: options.smartSearchClient,
-    limit,
-    timeWindowDays: 30,
-    generatedAt
-  });
+
+  if (options.redNoteRecords) {
+    const rednote = collectRedNoteHotspots({
+      runId,
+      records: options.redNoteRecords,
+      searchQuery: options.redNoteSearchQuery ?? 'RedNote imported records',
+      timeWindowDays: 30,
+      generatedAt,
+      limit
+    });
+    collected.sources.push(...rednote.sources);
+    collected.hotspots.push(...rednote.hotspots);
+  }
+
+  if (!options.smartSearchClient && !options.redNoteRecords) {
+    throw new Error('runPipeline requires smartSearchClient or redNoteRecords unless fixtureData is provided');
+  }
+
+  return collected;
 }
 
 async function writeReports(input: {

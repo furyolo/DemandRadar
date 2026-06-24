@@ -6,7 +6,9 @@ export const DomainSchema = z.enum([
   'policy',
   'social_events',
   'global_expansion',
-  'ai_applications'
+  'ai_applications',
+  'social_media',
+  'rednote'
 ]);
 
 export const RunSchema = z.object({

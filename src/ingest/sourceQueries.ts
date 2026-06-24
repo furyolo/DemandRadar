@@ -31,6 +31,14 @@ export function buildSourceQueries(timeWindowDays = 30): SourceQuery[] {
     {
       domain: 'ai_applications',
       query: `AI application workflow pain points users asking for tools ${window} Reddit Hacker News Product Hunt`
+    },
+    {
+      domain: 'social_media',
+      query: `social media creator community pain points unmet needs product opportunities ${window} Reddit TikTok YouTube Instagram`
+    },
+    {
+      domain: 'rednote',
+      query: `RedNote Xiaohongshu Little Red Book user pain points complaints unmet needs product opportunities ${window} site:xiaohongshu.com`
     }
   ];
 }

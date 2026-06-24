@@ -51,6 +51,33 @@ npm run demandradar -- show <demand-id>
 npm run demandradar -- report 2026-06-18
 ```
 
+## RedNote Import
+
+DemandRadar can ingest RedNote/Xiaohongshu notes exported by an external skill, MCP server, or API without binding the core pipeline to a specific provider:
+
+```bash
+npm run demandradar:run -- --rednote-json data/rednote-notes.json --rednote-query "RedNote AI tools" --skip-smart-search
+```
+
+Supported JSON shapes:
+
+```json
+[
+  {
+    "url": "https://www.xiaohongshu.com/explore/...",
+    "title": "Note title",
+    "content": "Note content",
+    "author": "Author name",
+    "likes": 100,
+    "collects": 20,
+    "comments": 5,
+    "tags": ["AI", "效率"]
+  }
+]
+```
+
+or `{ "notes": [...] }` / `{ "results": [...] }`. Imported records are mapped into `rednote` sources and hotspots before the existing demand extraction pipeline runs.
+
 ## Live Smoke
 
 Live Smart Search checks are opt-in because upstream provider health can fail independently of code correctness.

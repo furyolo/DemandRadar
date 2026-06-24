@@ -6,11 +6,14 @@ const keywordMap: Record<DemandDomain, string[]> = {
   policy: ['regulation', 'policy', 'compliance', 'law', 'government', 'tax'],
   social_events: ['trend', 'event', 'community', 'social', 'viral', 'culture'],
   global_expansion: ['cross border', 'global', 'international', 'export', 'localization'],
-  ai_applications: ['ai', 'llm', 'agent', 'automation', 'copilot', 'workflow']
+  ai_applications: ['ai', 'llm', 'agent', 'automation', 'copilot', 'workflow'],
+  social_media: ['social media', 'creator', 'influencer', 'ugc', 'community', 'content platform'],
+  rednote: ['rednote', 'red note', 'xiaohongshu', 'little red book', '小红书']
 };
 
 export function classifyHotspot(hotspot: Hotspot): DemandDomain {
   const text = `${hotspot.title} ${hotspot.summary} ${hotspot.search_query}`.toLowerCase();
+  if (keywordMap.rednote.some((keyword) => text.includes(keyword))) return 'rednote';
   let best: { domain: DemandDomain; score: number } = { domain: hotspot.domain, score: 0 };
   for (const [domain, keywords] of Object.entries(keywordMap) as Array<[DemandDomain, string[]]>) {
     const score = keywords.filter((keyword) => text.includes(keyword)).length;

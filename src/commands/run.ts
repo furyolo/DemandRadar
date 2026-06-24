@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import type { Command } from 'commander';
 import { LlmClient } from '../integrations/llmClient.js';
 import { SmartSearchClient } from '../integrations/smartSearchClient.js';
@@ -17,10 +18,14 @@ export function registerRunCommand(program: Command): void {
     .option('--briefs-dir <path>', 'Briefs output directory', process.env.BRIEFS_DIR ?? 'briefs')
     .option('--market-batch-size <number>', 'Demand count per market evidence LLM batch', '3')
     .option('--market-concurrency <number>', 'Concurrent market evidence LLM batches', '3')
+    .option('--rednote-json <path>', 'Import RedNote/Xiaohongshu notes from a JSON file')
+    .option('--rednote-query <query>', 'Search query label for imported RedNote records', 'RedNote imported records')
+    .option('--skip-smart-search', 'Skip default Smart Search collection')
     .option('--cadence <cadence...>', 'Report cadence(s): daily weekly monthly')
     .option('--locale <locale...>', 'Report locale(s): en zh-CN')
     .action(async (options) => {
       const llmClient = options.fixture ? undefined : new LlmClient();
+      const redNoteRecords = options.rednoteJson ? JSON.parse(await readFile(options.rednoteJson, 'utf8')) : undefined;
       await runPipeline({
         date: options.date ?? todayUtcDate(),
         limit: Number(options.limit),
@@ -33,7 +38,9 @@ export function registerRunCommand(program: Command): void {
         cadences: options.cadence,
         locales: options.locale,
         fixtureData: options.fixture ? fixtureData : undefined,
-        smartSearchClient: options.fixture ? undefined : new SmartSearchClient(),
+        redNoteRecords,
+        redNoteSearchQuery: options.rednoteQuery,
+        smartSearchClient: options.fixture || options.skipSmartSearch ? undefined : new SmartSearchClient(),
         llmClient,
         translationLlm: llmClient
       });

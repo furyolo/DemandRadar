@@ -43,6 +43,11 @@ describe('cleaning utilities', () => {
   it('classifies AI application hotspots by keyword', () => {
     expect(classifyHotspot(hotspot('h1', 'https://example.com/a', 50, 'AI agent workflow'))).toBe('ai_applications');
   });
+
+  it('classifies RedNote hotspots by common English names', () => {
+    expect(classifyHotspot(hotspot('h1', 'https://example.com/a', 50, 'RedNote creator pain point'))).toBe('rednote');
+    expect(classifyHotspot(hotspot('h2', 'https://example.com/b', 50, 'Xiaohongshu user complaint'))).toBe('rednote');
+  });
 });
 
 function hotspot(id: string, canonical_url: string, heat_score: number, title = 'Startup signal'): Hotspot {
