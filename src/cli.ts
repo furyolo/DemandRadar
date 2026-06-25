@@ -4,6 +4,7 @@ import { registerReportCommand } from './commands/report.js';
 import { registerRunCommand } from './commands/run.js';
 import { registerShowCommand } from './commands/show.js';
 import { loadDemandRadarEnv } from './config/env.js';
+import { pathToFileURL } from 'node:url';
 
 export function buildCli(): Command {
   const program = new Command();
@@ -26,7 +27,16 @@ export async function main(argv = process.argv): Promise<void> {
   await buildCli().parseAsync(argv);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isDirectExecution(argv1 = process.argv[1], metaUrl = import.meta.url): boolean {
+  if (!argv1) return false;
+  try {
+    return metaUrl === pathToFileURL(argv1).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error(message);

@@ -36,7 +36,7 @@ export function generateDailyReport(input: DailyReportInput): DailyReport {
     });
     return `| ${index + 1} | ${escapeTableCell(demand.demand_statement)} | ${score.total_score}/100 | ${escapeTableCell(supply.existingSupply)} | ${escapeTableCell(supply.aiAgentFill)} | ${escapeTableCell(supply.transactionPath)} |`;
   }).join('\n');
-  const sources = renderSources(input);
+  const sources = renderSources(input, locale);
   const markdown = locale === 'zh-CN'
     ? `# DemandRadar 每日报告 - ${input.date}
 
@@ -85,7 +85,7 @@ ${sources || '- No source URLs'}
   };
 }
 
-function renderSources(input: DailyReportInput): string {
+function renderSources(input: DailyReportInput, locale: ReportLocale): string {
   if (input.sources && input.sources.length > 0) {
     const sourceUrls = new Set(input.sources.map((source) => source.source_url));
     const sourceLines = input.sources.map((source) => {
@@ -93,18 +93,36 @@ function renderSources(input: DailyReportInput): string {
       const updatedAt = typeof source.raw.updated_at === 'string' ? source.raw.updated_at : null;
       const freshness = typeof source.raw.freshness_status === 'string' ? source.raw.freshness_status : 'unknown';
       const time = [
-        source.published_at ? `published ${source.published_at}` : null,
-        updatedAt ? `updated ${updatedAt.slice(0, 10)}` : null,
-        `freshness ${freshness}`
+        source.published_at ? `${locale === 'zh-CN' ? '发布' : 'published'} ${source.published_at}` : null,
+        updatedAt ? `${locale === 'zh-CN' ? '更新' : 'updated'} ${updatedAt.slice(0, 10)}` : null,
+        `${locale === 'zh-CN' ? '时效' : 'freshness'} ${freshnessLabel(freshness, locale)}`
       ].filter(Boolean).join(', ');
       return `- [${platform}] ${source.title} (${time}): ${source.source_url}`;
     });
     const evidenceLines = Array.from(new Set(input.evidence.map((item) => item.source_url)))
       .filter((url) => !sourceUrls.has(url))
-      .map((url) => `- Evidence: ${url}`);
+      .map((url) => `- ${locale === 'zh-CN' ? '证据' : 'Evidence'}: ${url}`);
     return [...sourceLines, ...evidenceLines].join('\n');
   }
   return Array.from(new Set(input.evidence.map((item) => item.source_url))).map((url) => `- ${url}`).join('\n');
+}
+
+function freshnessLabel(freshness: string, locale: ReportLocale): string {
+  if (locale !== 'zh-CN') return freshness;
+  switch (freshness) {
+    case 'fresh':
+      return '新鲜';
+    case 'recent':
+      return '近期';
+    case 'stale':
+      return '偏旧';
+    case 'expired':
+      return '过期';
+    case 'unknown':
+      return '未知';
+    default:
+      return freshness;
+  }
 }
 
 function escapeTableCell(value: string): string {

@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { generateDailyReport } from '../src/reports/dailyReport.js';
 import { generateMiniBrief } from '../src/reports/miniBrief.js';
 import { generateMonthlyReport } from '../src/reports/monthlyReport.js';
-import { needsSimplifiedChineseTranslation, translateMarkdownReport } from '../src/reports/translateReport.js';
+import {
+  generateReaderTranslationZhCn,
+  needsSimplifiedChineseTranslation,
+  translateMarkdownReport
+} from '../src/reports/translateReport.js';
 import { generateWeeklyReport } from '../src/reports/weeklyReport.js';
 import type { Demand, MarketEvidence, ReportArtifact, Score, Source } from '../src/pipeline/types.js';
 
@@ -122,11 +126,57 @@ describe('reports', () => {
     });
 
     const serialized = JSON.stringify(messages);
-    expect(serialized).toContain('Preserve URLs');
-    expect(serialized).toContain('product names');
-    expect(serialized).toContain('code identifiers');
+    expect(serialized).toContain('地道的中文母语者日常口语风格');
+    expect(serialized).toContain('产品名称');
+    expect(serialized).toContain('代码标识符');
     expect(translated).toContain('https://example.com/report');
     expect(translated).toContain('manual research');
+  });
+
+  it('returns StoryForge-style zh-CN translation sidecars', async () => {
+    const sidecar = await generateReaderTranslationZhCn({
+      text: '# Script\n\nEnglish content.',
+      process: 'demandradar_report_translation_zh_cn',
+      sourceLanguage: 'en',
+      llm: {
+        async generateText() {
+          return '# 脚本\n\n中文内容。';
+        }
+      }
+    });
+
+    expect(sidecar).toMatchObject({
+      purpose: 'personal_review_only',
+      product_output: false,
+      model_source: 'LLM_MODEL',
+      prompt_version: 'm37_v2',
+      source_language: 'en',
+      process: 'demandradar_report_translation_zh_cn',
+      zh_cn_text: '# 脚本\n\n中文内容。'
+    });
+  });
+
+  it('skips reader translation for existing Simplified Chinese and reports LLM errors', async () => {
+    const skipped = await generateReaderTranslationZhCn({
+      text: '这已经是简体中文内容，应该直接跳过。',
+      process: 'demandradar_report_translation_zh_cn',
+      sourceLanguage: 'auto',
+      skipIfSimplifiedChinese: true
+    });
+    const failed = await generateReaderTranslationZhCn({
+      text: 'English content.',
+      process: 'demandradar_report_translation_zh_cn',
+      sourceLanguage: 'en',
+      llm: {
+        async generateText() {
+          throw new Error('provider unavailable');
+        }
+      }
+    });
+
+    expect(skipped.skipped).toBe(true);
+    expect(skipped.skip_reason).toBe('source_text_already_simplified_chinese');
+    expect(failed.translation_error).toContain('provider unavailable');
   });
 
   it('skips zh-CN translation when Markdown is already Chinese', () => {

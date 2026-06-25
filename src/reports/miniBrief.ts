@@ -19,7 +19,7 @@ export function generateMiniBrief(input: MiniBriefInput): RenderedMarkdown {
   const locale = input.locale ?? 'en';
   const slug = slugify(input.demand.demand_statement, input.demand.id);
   const path = locale === 'zh-CN' ? `briefs/${input.date}/${slug}.zh-CN.md` : `briefs/${input.date}/${slug}.md`;
-  const evidenceLines = input.evidence.map((item) => `- ${item.evidence_type}: ${item.value} (${item.source_url})`).join('\n');
+  const evidenceLines = input.evidence.map((item) => `- ${evidenceTypeLabel(item.evidence_type, locale)}: ${item.value} (${item.source_url})`).join('\n');
   const supply = analyzeSupplyFit({ ...input, locale });
   const markdown = locale === 'zh-CN'
     ? `# ${input.demand.demand_statement}
@@ -99,4 +99,22 @@ ${input.score.total_score}/100 — ${input.score.explanation}
 
 function slugify(value: string, fallback: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || fallback;
+}
+
+function evidenceTypeLabel(type: MarketEvidence['evidence_type'], locale: ReportLocale): string {
+  if (locale !== 'zh-CN') return type;
+  switch (type) {
+    case 'tam':
+      return '总市场规模';
+    case 'sam':
+      return '可服务市场';
+    case 'som':
+      return '可获得市场';
+    case 'competitor':
+      return '竞品/现有供给';
+    case 'willingness_to_pay':
+      return '支付意愿';
+    case 'community_signal':
+      return '社区信号';
+  }
 }

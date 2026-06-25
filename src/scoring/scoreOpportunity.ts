@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Demand, MarketEvidence, Score, Source } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportLocale, Score, Source } from '../pipeline/types.js';
 import { ScoreSchema } from '../pipeline/types.js';
 import { defaultScoringWeights, type ScoringWeights } from './weights.js';
 
@@ -8,7 +8,8 @@ export function scoreOpportunity(
   evidence: MarketEvidence[],
   weights: ScoringWeights = defaultScoringWeights,
   generatedAt = new Date().toISOString(),
-  sources: Source[] = []
+  sources: Source[] = [],
+  locale: ReportLocale = 'en'
 ): Score {
   const freshness = sourceFreshness(demand, sources);
   const dimension_scores = {
@@ -27,10 +28,7 @@ export function scoreOpportunity(
   const confidence = evidence.length > 0
     ? (demand.confidence + evidence.reduce((sum, item) => sum + item.confidence, 0) / evidence.length) / 2
     : demand.confidence * 0.7;
-  const explanation = [
-    `Demand strength ${dimension_scores.demand_strength}, market size ${dimension_scores.market_size}, willingness to pay ${dimension_scores.willingness_to_pay}, feasibility ${dimension_scores.feasibility}.`,
-    freshness.penalty > 0 ? `Freshness penalty ${freshness.penalty}: ${freshness.reason}.` : null
-  ].filter(Boolean).join(' ');
+  const explanation = formatScoreExplanation(dimension_scores, freshness, locale);
 
   return ScoreSchema.parse({
     id: `score-${randomUUID()}`,
@@ -67,6 +65,40 @@ function sourceFreshness(demand: Demand, sources: Source[]): { penalty: number; 
   if (statuses.includes('recent')) return { penalty: 8, reason: 'one or more cited sources are 15-30 days old' };
   if (statuses.every((status) => status === 'unknown' || status === undefined)) return { penalty: 5, reason: 'cited sources lack publish/update time' };
   return { penalty: 0, reason: 'cited sources are fresh' };
+}
+
+function formatScoreExplanation(
+  dimensionScores: Score['dimension_scores'],
+  freshness: { penalty: number; reason: string },
+  locale: ReportLocale
+): string {
+  if (locale === 'zh-CN') {
+    const base = `需求强度 ${dimensionScores.demand_strength}，市场规模 ${dimensionScores.market_size}，支付意愿 ${dimensionScores.willingness_to_pay}，可行性 ${dimensionScores.feasibility}。`;
+    return freshness.penalty > 0 ? `${base} 时效惩罚 ${freshness.penalty}：${translateFreshnessReason(freshness.reason)}。` : base;
+  }
+  return [
+    `Demand strength ${dimensionScores.demand_strength}, market size ${dimensionScores.market_size}, willingness to pay ${dimensionScores.willingness_to_pay}, feasibility ${dimensionScores.feasibility}.`,
+    freshness.penalty > 0 ? `Freshness penalty ${freshness.penalty}: ${freshness.reason}.` : null
+  ].filter(Boolean).join(' ');
+}
+
+function translateFreshnessReason(reason: string): string {
+  switch (reason) {
+    case 'no matched source freshness metadata':
+      return '没有匹配到来源时效元数据';
+    case 'one or more cited sources are older than 90 days':
+      return '一个或多个引用来源超过 90 天';
+    case 'one or more cited sources are 31-90 days old':
+      return '一个或多个引用来源已有 31-90 天';
+    case 'one or more cited sources are 15-30 days old':
+      return '一个或多个引用来源已有 15-30 天';
+    case 'cited sources lack publish/update time':
+      return '引用来源缺少发布或更新时间';
+    case 'cited sources are fresh':
+      return '引用来源较新';
+    default:
+      return reason;
+  }
 }
 
 function clamp(value: number): number {

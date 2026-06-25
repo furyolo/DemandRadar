@@ -15,7 +15,7 @@ import { HotspotSchema, PipelineResultSchema, ReportArtifactSchema, RunSchema } 
 import { generateDailyReport } from '../reports/dailyReport.js';
 import { generateMiniBrief } from '../reports/miniBrief.js';
 import { generateMonthlyReport } from '../reports/monthlyReport.js';
-import type { MarkdownTranslationLlm } from '../reports/translateReport.js';
+import { generateReaderTranslationZhCn, needsSimplifiedChineseTranslation, type MarkdownTranslationLlm } from '../reports/translateReport.js';
 import { generateWeeklyReport } from '../reports/weeklyReport.js';
 import { rankDemandScores, scoreOpportunity } from '../scoring/scoreOpportunity.js';
 import { openDatabase, type DemandRadarDatabase } from '../storage/database.js';
@@ -84,6 +84,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       ...hotspot,
       domain: classifyHotspot(hotspot)
     }))), limit);
+    const outputLocale = inferSourceLocale(sources, hotspots);
     if (hotspots.length === 0 && !options.fixtureMode) {
       throw new Error('No hotspots collected from live Smart Search run');
     }
@@ -94,7 +95,8 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
         hotspots: [hotspot],
         sources: sources.filter((source) => hotspot.source_ids.includes(source.id)),
         llm: requiredLlm(options),
-        generatedAt: now
+        generatedAt: now,
+        outputLocale
       }))
     )).flat();
     log(`Extracted ${demands.length} demands from ${hotspots.length} hotspots concurrently`);
@@ -103,6 +105,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       sources,
       llm: requiredLlm(options),
       generatedAt: now,
+      outputLocale,
       batchSize: marketEvidenceBatchSize,
       concurrency: marketEvidenceConcurrency,
       onBatchFallback: (error) => log(`Market evidence batch fallback: ${error instanceof Error ? error.message : String(error)}`)
@@ -111,7 +114,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
 
     const scores = rankDemandScores(demands.map((demand) => {
       const evidence = market_evidence.filter((item) => item.demand_id === demand.id);
-      return scoreOpportunity(demand, evidence, undefined, now, sources);
+      return scoreOpportunity(demand, evidence, undefined, now, sources, outputLocale);
     }), 10);
     const reportArtifacts = await writeReports({
       runId,
@@ -124,7 +127,8 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       scores,
       generatedAt: now,
       cadences: options.cadences ?? ['daily'],
-      locales: options.locales ?? ['en']
+      locales: options.locales ?? ['en'],
+      translationLlm: options.translationLlm
     });
     log(`Wrote ${reportArtifacts.length} report artifacts`);
 
@@ -149,6 +153,7 @@ async function researchMarketEvidenceInBatches(input: {
   sources: Source[];
   llm: DemandExtractionLlm & MarketResearchLlm;
   generatedAt: string;
+  outputLocale?: ReportLocale;
   batchSize: number;
   concurrency: number;
   onBatchFallback?: (error: unknown) => void;
@@ -160,7 +165,8 @@ async function researchMarketEvidenceInBatches(input: {
         demands: batch,
         sources: input.sources,
         llm: input.llm,
-        generatedAt: input.generatedAt
+        generatedAt: input.generatedAt,
+        outputLocale: input.outputLocale
       });
     } catch (error) {
       input.onBatchFallback?.(error);
@@ -168,7 +174,8 @@ async function researchMarketEvidenceInBatches(input: {
         demand,
         sources: input.sources,
         llm: input.llm,
-        generatedAt: input.generatedAt
+        generatedAt: input.generatedAt,
+        outputLocale: input.outputLocale
       })))).flat();
     }
   });
@@ -204,6 +211,23 @@ function chunk<T>(items: T[], size: number): T[][] {
 function normalizePositiveInteger(value: number | undefined, fallback: number): number {
   if (value === undefined || !Number.isInteger(value) || value <= 0) return fallback;
   return value;
+}
+
+function inferSourceLocale(sources: Source[], hotspots: Hotspot[]): ReportLocale {
+  const text = [
+    ...sources.flatMap((source) => [
+      source.title,
+      source.snippet,
+      JSON.stringify(source.raw)
+    ]),
+    ...hotspots.flatMap((hotspot) => [
+      hotspot.title,
+      hotspot.summary
+    ])
+  ].join('\n');
+  const chineseCount = Array.from(text).filter((char) => char >= '\u4e00' && char <= '\u9fff').length;
+  const englishWordCount = text.match(/\b[A-Za-z]{4,}\b/g)?.length ?? 0;
+  return chineseCount >= 8 && chineseCount >= englishWordCount ? 'zh-CN' : 'en';
 }
 
 async function collect(options: RunPipelineOptions, runId: string, limit: number, generatedAt: string): Promise<{ sources: Source[]; hotspots: Hotspot[] }> {
@@ -278,9 +302,15 @@ async function writeReports(input: {
       if (!demand) continue;
       const evidence = input.market_evidence.filter((item) => item.demand_id === demand.id);
       const rendered = generateMiniBrief({ date: input.date, demand, evidence, score, locale });
-      const path = join(input.briefsDir, input.date, rendered.path.split('/').pop() ?? 'brief.md');
-      await writeMarkdown(path, rendered.markdown);
-      localizedBriefPaths.push(rendered.path);
+      const localizedRendered = await translateRenderedReportIfNeeded({
+        rendered,
+        locale,
+        translationLlm: input.translationLlm,
+        process: 'demandradar_mini_brief_translation_zh_cn'
+      });
+      const path = join(input.briefsDir, input.date, localizedRendered.path.split('/').pop() ?? 'brief.md');
+      await writeMarkdown(path, localizedRendered.markdown);
+      localizedBriefPaths.push(localizedRendered.path);
       const key = `brief:${demand.id}:${locale}`;
       const canonicalKey = `brief:${demand.id}:en`;
       const report = await writeReportArtifact({
@@ -290,7 +320,7 @@ async function writeReports(input: {
         periodStart: input.date,
         periodEnd: input.date,
         reportsDir: input.briefsDir,
-        rendered,
+        rendered: localizedRendered,
         generatedAt: input.generatedAt,
         locale,
         canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(canonicalKey) ?? null
@@ -314,6 +344,12 @@ async function writeReports(input: {
           briefPaths,
           locale
         });
+        const renderedDaily = await translateRenderedReportIfNeeded({
+          rendered: daily,
+          locale,
+          translationLlm: input.translationLlm,
+          process: 'demandradar_daily_report_translation_zh_cn'
+        });
         const report = await writeReportArtifact({
           runId: input.runId,
           reportType: 'daily',
@@ -321,7 +357,7 @@ async function writeReports(input: {
           periodStart: input.date,
           periodEnd: input.date,
           reportsDir: input.reportsDir,
-          rendered: daily,
+          rendered: renderedDaily,
           generatedAt: input.generatedAt,
           locale,
           canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(`daily:${input.date}:en`) ?? null
@@ -342,6 +378,12 @@ async function writeReports(input: {
           dailyReports: dailyReportsForLocale,
           locale
         });
+        const renderedWeekly = await translateRenderedReportIfNeeded({
+          rendered: weekly,
+          locale,
+          translationLlm: input.translationLlm,
+          process: 'demandradar_weekly_report_translation_zh_cn'
+        });
         const report = await writeReportArtifact({
           runId: input.runId,
           reportType: 'weekly',
@@ -349,7 +391,7 @@ async function writeReports(input: {
           periodStart: period.start,
           periodEnd: period.end,
           reportsDir: input.reportsDir,
-          rendered: weekly,
+          rendered: renderedWeekly,
           generatedAt: input.generatedAt,
           locale,
           canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(`weekly:${period.start}:${period.end}:en`) ?? null
@@ -367,6 +409,12 @@ async function writeReports(input: {
           weeklyReports: weeklyReportsForLocale,
           locale
         });
+        const renderedMonthly = await translateRenderedReportIfNeeded({
+          rendered: monthly,
+          locale,
+          translationLlm: input.translationLlm,
+          process: 'demandradar_monthly_report_translation_zh_cn'
+        });
         const report = await writeReportArtifact({
           runId: input.runId,
           reportType: 'monthly',
@@ -374,7 +422,7 @@ async function writeReports(input: {
           periodStart: period.start,
           periodEnd: period.end,
           reportsDir: input.reportsDir,
-          rendered: monthly,
+          rendered: renderedMonthly,
           generatedAt: input.generatedAt,
           locale,
           canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(`monthly:${month}:en`) ?? null
@@ -390,6 +438,27 @@ async function writeReports(input: {
     if (!scoreByDemand.has(score.demand_id)) throw new Error(`Missing demand score ${score.demand_id}`);
   }
   return artifacts;
+}
+
+async function translateRenderedReportIfNeeded(input: {
+  rendered: { path: string; markdown: string; title: string };
+  locale: ReportLocale;
+  translationLlm?: MarkdownTranslationLlm;
+  process: string;
+}): Promise<{ path: string; markdown: string; title: string }> {
+  if (input.locale !== 'zh-CN') return input.rendered;
+  if (!input.translationLlm) return input.rendered;
+  if (!needsSimplifiedChineseTranslation(input.rendered.markdown)) return input.rendered;
+
+  const sidecar = await generateReaderTranslationZhCn({
+    text: input.rendered.markdown,
+    llm: input.translationLlm,
+    process: input.process,
+    sourceLanguage: 'en',
+    skipIfSimplifiedChinese: true
+  });
+  if (!sidecar.zh_cn_text) return input.rendered;
+  return { ...input.rendered, markdown: sidecar.zh_cn_text };
 }
 
 async function writeCanonicalReport(input: {

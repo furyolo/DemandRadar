@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCli } from '../src/cli.js';
+import { buildCli, isDirectExecution } from '../src/cli.js';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +14,11 @@ describe('buildCli', () => {
     expect(names).toContain('list');
     expect(names).toContain('show');
     expect(names).toContain('report');
+  });
+
+  it('detects direct execution with a Windows file path', () => {
+    expect(isDirectExecution('D:\\Coding\\DemandRadar\\src\\cli.ts', 'file:///D:/Coding/DemandRadar/src/cli.ts')).toBe(true);
+    expect(isDirectExecution('D:\\Coding\\DemandRadar\\src\\cli.ts', 'file:///D:/Coding/DemandRadar/src/other.ts')).toBe(false);
   });
 
   it('loads config env without overriding existing shell values', async () => {

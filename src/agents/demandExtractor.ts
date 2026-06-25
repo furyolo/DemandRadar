@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { LlmMessage } from '../integrations/llmClient.js';
-import type { Demand, Hotspot, Source } from '../pipeline/types.js';
+import type { Demand, Hotspot, ReportLocale, Source } from '../pipeline/types.js';
 import { DemandSchema } from '../pipeline/types.js';
 
 export interface DemandExtractionLlm {
@@ -12,6 +12,7 @@ export interface ExtractDemandsOptions {
   sources: Source[];
   llm: DemandExtractionLlm;
   generatedAt: string;
+  outputLocale?: ReportLocale;
 }
 
 const DemandFromLlmSchema = DemandSchema.extend({
@@ -29,6 +30,9 @@ const DemandExtractionResponseSchema = z.object({
 }));
 
 export async function extractDemands(options: ExtractDemandsOptions): Promise<Demand[]> {
+  const languageInstruction = options.outputLocale === 'zh-CN'
+    ? 'Target output language for all user-facing fields is Simplified Chinese. Do not output English analysis unless it is a product name, URL, code identifier, or other proper noun that should remain English.'
+    : 'Write all user-facing fields in the dominant language of the provided source content. If the sources are primarily Chinese, write Simplified Chinese; do not switch to English.';
   const response = await options.llm.generateJson(DemandExtractionResponseSchema, [
     {
       role: 'system',
@@ -41,7 +45,7 @@ export async function extractDemands(options: ExtractDemandsOptions): Promise<De
         'Frame demand_statement so it can later be evaluated as a demand-supply transaction opportunity.',
         'Use the provided hotspot id for hotspot_id, the provided run id for run_id, and the provided generated_at value.',
         'citations must contain objects with source_url and quote. Do not include unsupported claims.',
-        'Write all user-facing fields in the dominant language of the provided source content. If the sources are primarily Chinese, write Simplified Chinese; do not switch to English.'
+        languageInstruction
       ].join(' ')
     },
     {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { LlmMessage } from '../integrations/llmClient.js';
-import type { Demand, MarketEvidence, Source } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportLocale, Source } from '../pipeline/types.js';
 import { MarketEvidenceSchema } from '../pipeline/types.js';
 
 export interface MarketResearchLlm {
@@ -12,6 +12,7 @@ export interface ResearchMarketEvidenceOptions {
   sources: Source[];
   llm: MarketResearchLlm;
   generatedAt: string;
+  outputLocale?: ReportLocale;
 }
 
 export interface ResearchMarketEvidenceBatchOptions {
@@ -19,6 +20,7 @@ export interface ResearchMarketEvidenceBatchOptions {
   sources: Source[];
   llm: MarketResearchLlm;
   generatedAt: string;
+  outputLocale?: ReportLocale;
 }
 
 const MarketResearchResponseSchema = z.object({
@@ -30,13 +32,17 @@ export async function researchMarketEvidence(options: ResearchMarketEvidenceOpti
     demands: [options.demand],
     sources: options.sources,
     llm: options.llm,
-    generatedAt: options.generatedAt
+    generatedAt: options.generatedAt,
+    outputLocale: options.outputLocale
   });
   return evidence.filter((item) => item.demand_id === options.demand.id);
 }
 
 export async function researchMarketEvidenceBatch(options: ResearchMarketEvidenceBatchOptions): Promise<MarketEvidence[]> {
   if (options.demands.length === 0) return [];
+  const languageInstruction = options.outputLocale === 'zh-CN'
+    ? 'Target output language for all user-facing evidence values is Simplified Chinese. Do not output English analysis unless it is a product name, URL, code identifier, or other proper noun that should remain English.'
+    : 'Write all user-facing evidence values in the dominant language of the provided demands and sources. If they are primarily Chinese, write Simplified Chinese; do not switch to English.';
   const response = await options.llm.generateJson(MarketResearchResponseSchema, [
     {
       role: 'system',
@@ -49,7 +55,7 @@ export async function researchMarketEvidenceBatch(options: ResearchMarketEvidenc
         'Use only the provided demand ids for demand_id. Use the provided run ids and generated_at value.',
         'Return 2 to 5 market_evidence objects per demand when evidence is available, including at least one competitor item when source-backed supply evidence exists. Return no objects for a demand rather than inventing evidence.',
         'Do not include evidence without a valid source_url. Mark uncertainty through lower confidence.',
-        'Write all user-facing evidence values in the dominant language of the provided demands and sources. If they are primarily Chinese, write Simplified Chinese; do not switch to English.'
+        languageInstruction
       ].join(' ')
     },
     {
