@@ -1,4 +1,4 @@
-import type { Demand, MarketEvidence, Score, Source } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportLocale, Score, Source } from '../pipeline/types.js';
 import { analyzeSupplyFit } from './supplyAnalysis.js';
 
 export interface DailyReportInput {
@@ -8,6 +8,7 @@ export interface DailyReportInput {
   sources?: Source[];
   evidence: MarketEvidence[];
   briefPaths: string[];
+  locale?: ReportLocale;
 }
 
 export interface DailyReport {
@@ -17,22 +18,47 @@ export interface DailyReport {
 }
 
 export function generateDailyReport(input: DailyReportInput): DailyReport {
+  const locale = input.locale ?? 'en';
   const demandById = new Map(input.demands.map((demand) => [demand.id, demand]));
   const top10 = input.scores.slice(0, 10);
   const ranking = top10.map((score, index) => {
     const demand = demandById.get(score.demand_id);
     if (!demand) {
-      return `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | Demand record missing | Unknown | Cannot match without demand record |`;
+      return locale === 'zh-CN'
+        ? `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | 缺少需求记录 | 未知 | 无法匹配，因为缺少需求记录 |`
+        : `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | Demand record missing | Unknown | Cannot match without demand record |`;
     }
     const supply = analyzeSupplyFit({
       demand,
       evidence: input.evidence.filter((item) => item.demand_id === demand.id),
-      score
+      score,
+      locale
     });
     return `| ${index + 1} | ${escapeTableCell(demand.demand_statement)} | ${score.total_score}/100 | ${escapeTableCell(supply.existingSupply)} | ${escapeTableCell(supply.aiAgentFill)} | ${escapeTableCell(supply.transactionPath)} |`;
   }).join('\n');
   const sources = renderSources(input);
-  const markdown = `# DemandRadar Daily - ${input.date}
+  const markdown = locale === 'zh-CN'
+    ? `# DemandRadar 每日报告 - ${input.date}
+
+## 报告重点
+
+本报告呈现 10 条需求机会，并逐条说明现有供给是否能满足需求、仍缺什么供给、以及 AI Agent 能否补上缺口促成交易。
+
+## 需求-供给匹配前十
+
+| 排名 | 需求 | 分数 | 现有供给匹配 | AI Agent 补足 | 交易路径 |
+| --- | --- | --- | --- | --- | --- |
+${ranking}
+
+## Top 3 精简 Brief
+
+${input.briefPaths.slice(0, 3).map((path) => `- ${path}`).join('\n')}
+
+## 来源链接
+
+${sources || '- 暂无来源链接'}
+`
+    : `# DemandRadar Daily - ${input.date}
 
 ## Report Focus
 
@@ -53,9 +79,9 @@ ${input.briefPaths.slice(0, 3).map((path) => `- ${path}`).join('\n')}
 ${sources || '- No source URLs'}
 `;
   return {
-    path: `reports/${input.date}.md`,
+    path: locale === 'zh-CN' ? `reports/${input.date}.zh-CN.md` : `reports/${input.date}.md`,
     markdown,
-    title: `DemandRadar Daily - ${input.date}`
+    title: locale === 'zh-CN' ? `DemandRadar 每日报告 - ${input.date}` : `DemandRadar Daily - ${input.date}`
   };
 }
 

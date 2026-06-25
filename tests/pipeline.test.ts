@@ -57,7 +57,7 @@ describe('runPipeline', () => {
     db.close();
   });
 
-  it('keeps English artifact persists when zh-CN translation fails', async () => {
+  it('generates zh-CN artifacts directly without relying on translation', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'demandradar-'));
     const db = openDatabase(':memory:');
     const repository = new DemandRadarRepository(db);
@@ -78,7 +78,7 @@ describe('runPipeline', () => {
     });
 
     expect(result.reports.some((report) => report.path === 'reports/2026-06-18.md' && report.locale === 'en')).toBe(true);
-    expect(result.reports.some((report) => report.locale === 'zh-CN')).toBe(false);
+    expect(result.reports.some((report) => report.path === 'reports/2026-06-18.zh-CN.md' && report.locale === 'zh-CN')).toBe(true);
     db.close();
   });
 });

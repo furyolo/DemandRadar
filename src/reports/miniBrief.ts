@@ -1,4 +1,4 @@
-import type { Demand, MarketEvidence, Score } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportLocale, Score } from '../pipeline/types.js';
 import { analyzeSupplyFit } from './supplyAnalysis.js';
 
 export interface MiniBriefInput {
@@ -6,6 +6,7 @@ export interface MiniBriefInput {
   demand: Demand;
   evidence: MarketEvidence[];
   score: Score;
+  locale?: ReportLocale;
 }
 
 export interface RenderedMarkdown {
@@ -15,11 +16,49 @@ export interface RenderedMarkdown {
 }
 
 export function generateMiniBrief(input: MiniBriefInput): RenderedMarkdown {
+  const locale = input.locale ?? 'en';
   const slug = slugify(input.demand.demand_statement, input.demand.id);
-  const path = `briefs/${input.date}/${slug}.md`;
+  const path = locale === 'zh-CN' ? `briefs/${input.date}/${slug}.zh-CN.md` : `briefs/${input.date}/${slug}.md`;
   const evidenceLines = input.evidence.map((item) => `- ${item.evidence_type}: ${item.value} (${item.source_url})`).join('\n');
-  const supply = analyzeSupplyFit(input);
-  const markdown = `# ${input.demand.demand_statement}
+  const supply = analyzeSupplyFit({ ...input, locale });
+  const markdown = locale === 'zh-CN'
+    ? `# ${input.demand.demand_statement}
+
+## 目标用户
+
+${input.demand.user_profile}
+
+## 痛点
+
+${input.demand.pain_point}
+
+## MVP 功能
+
+- 捕获相关需求信号
+- 保留有来源支撑的证据
+- 对机会质量排序
+
+## 供给侧匹配
+
+- 现有供给：${supply.existingSupply}
+- 供给缺口：${supply.supplyGap}
+- AI Agent 补足：${supply.aiAgentFill}
+- 交易路径：${supply.transactionPath}
+
+## 市场证据
+
+${evidenceLines || '- 暂无市场证据'}
+
+## 分数
+
+${input.score.total_score}/100 - ${input.score.explanation}
+
+## 风险
+
+- 证据置信度：${input.score.confidence.toFixed(2)}
+- 正式使用前需要复核来源覆盖
+`
+    : `# ${input.demand.demand_statement}
 
 ## Target User
 

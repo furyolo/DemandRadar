@@ -40,6 +40,31 @@ describe('reports', () => {
     expect(brief.markdown).toContain('Transaction path:');
   });
 
+  it('renders zh-CN report surfaces without English template labels', () => {
+    const demand = fixtureDemand();
+    const evidence = [fixtureEvidence(), fixtureCompetitorEvidence()];
+    const score = fixtureScore();
+    const brief = generateMiniBrief({ date: '2026-06-18', demand, evidence, score, locale: 'zh-CN' });
+    const daily = generateDailyReport({
+      date: '2026-06-18',
+      scores: [score],
+      demands: [demand],
+      sources: [fixtureSource()],
+      evidence,
+      briefPaths: [brief.path],
+      locale: 'zh-CN'
+    });
+
+    expect(brief.path).toBe('briefs/2026-06-18/automate-opportunity-research.zh-CN.md');
+    expect(brief.markdown).toContain('## 供给侧匹配');
+    expect(brief.markdown).toContain('现有供给：可见但不完整');
+    expect(daily.path).toBe('reports/2026-06-18.zh-CN.md');
+    expect(daily.markdown).toContain('## 需求-供给匹配前十');
+    expect(daily.markdown).toContain('| 排名 | 需求 | 分数 | 现有供给匹配 | AI Agent 补足 | 交易路径 |');
+    expect(daily.markdown).not.toContain('## Report Focus');
+    expect(daily.markdown).not.toContain('Existing Supply Fit');
+  });
+
   it('uses demand id when Mini Brief title has no ASCII slug', () => {
     const demand = {
       ...fixtureDemand(),

@@ -1,4 +1,4 @@
-import type { Demand, MarketEvidence, ReportArtifact, Score } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportArtifact, ReportLocale, Score } from '../pipeline/types.js';
 import type { RenderedMarkdown } from './miniBrief.js';
 
 export interface WeeklyReportInput {
@@ -8,9 +8,11 @@ export interface WeeklyReportInput {
   demands: Demand[];
   evidence: MarketEvidence[];
   dailyReports: ReportArtifact[];
+  locale?: ReportLocale;
 }
 
 export function generateWeeklyReport(input: WeeklyReportInput): RenderedMarkdown {
+  const locale = input.locale ?? 'en';
   const demandById = new Map(input.demands.map((demand) => [demand.id, demand]));
   const seen = new Set<string>();
   const ranked = input.scores
@@ -26,7 +28,22 @@ export function generateWeeklyReport(input: WeeklyReportInput): RenderedMarkdown
   const opportunities = ranked.map(({ score, demand }, index) => `${index + 1}. ${demand.demand_statement} - ${score.total_score}/100`).join('\n');
   const dailyInputs = input.dailyReports.map((report) => `- ${report.path}`).join('\n');
   const sources = unique(input.evidence.map((item) => item.source_url)).map((url) => `- ${url}`).join('\n');
-  const markdown = `# DemandRadar Weekly - ${input.periodStart} to ${input.periodEnd}
+  const markdown = locale === 'zh-CN'
+    ? `# DemandRadar 周报 - ${input.periodStart} 到 ${input.periodEnd}
+
+## 去重后的机会
+
+${opportunities || '- 暂无已评分机会'}
+
+## 日报输入
+
+${dailyInputs || '- 暂无日报产物'}
+
+## 来源链接
+
+${sources || '- 暂无来源链接'}
+`
+    : `# DemandRadar Weekly - ${input.periodStart} to ${input.periodEnd}
 
 ## Deduplicated Opportunities
 
@@ -41,9 +58,9 @@ ${dailyInputs || '- No daily report artifacts found'}
 ${sources || '- No source URLs'}
 `;
   return {
-    path: `reports/weekly/${input.periodStart}_to_${input.periodEnd}.en.md`,
+    path: locale === 'zh-CN' ? `reports/weekly/${input.periodStart}_to_${input.periodEnd}.zh-CN.md` : `reports/weekly/${input.periodStart}_to_${input.periodEnd}.en.md`,
     markdown,
-    title: `DemandRadar Weekly - ${input.periodStart} to ${input.periodEnd}`
+    title: locale === 'zh-CN' ? `DemandRadar 周报 - ${input.periodStart} 到 ${input.periodEnd}` : `DemandRadar Weekly - ${input.periodStart} to ${input.periodEnd}`
   };
 }
 

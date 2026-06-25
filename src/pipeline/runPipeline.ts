@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { extractDemands, type DemandExtractionLlm } from '../agents/demandExtractor.js';
 import { researchMarketEvidence, researchMarketEvidenceBatch, type MarketResearchLlm } from '../agents/marketResearcher.js';
@@ -15,7 +15,7 @@ import { HotspotSchema, PipelineResultSchema, ReportArtifactSchema, RunSchema } 
 import { generateDailyReport } from '../reports/dailyReport.js';
 import { generateMiniBrief } from '../reports/miniBrief.js';
 import { generateMonthlyReport } from '../reports/monthlyReport.js';
-import { needsSimplifiedChineseTranslation, translateMarkdownReport, type MarkdownTranslationLlm } from '../reports/translateReport.js';
+import type { MarkdownTranslationLlm } from '../reports/translateReport.js';
 import { generateWeeklyReport } from '../reports/weeklyReport.js';
 import { rankDemandScores, scoreOpportunity } from '../scoring/scoreOpportunity.js';
 import { openDatabase, type DemandRadarDatabase } from '../storage/database.js';
@@ -124,8 +124,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       scores,
       generatedAt: now,
       cadences: options.cadences ?? ['daily'],
-      locales: options.locales ?? ['en'],
-      translationLlm: options.translationLlm ?? (isMarkdownTranslationLlm(options.llmClient) ? options.llmClient : undefined)
+      locales: options.locales ?? ['en']
     });
     log(`Wrote ${reportArtifacts.length} report artifacts`);
 
@@ -265,110 +264,125 @@ async function writeReports(input: {
 }): Promise<ReportArtifact[]> {
   const artifacts: ReportArtifact[] = [];
   const scoreByDemand = new Map(input.scores.map((score) => [score.demand_id, score]));
-  const topThree = input.scores.slice(0, 3);
-  const briefPaths: string[] = [];
-
-  for (const score of topThree) {
-    const demand = input.demands.find((item) => item.id === score.demand_id);
-    if (!demand) continue;
-    const evidence = input.market_evidence.filter((item) => item.demand_id === demand.id);
-    const rendered = generateMiniBrief({ date: input.date, demand, evidence, score });
-    const path = join(input.briefsDir, input.date, rendered.path.split('/').pop() ?? 'brief.md');
-    await writeMarkdown(path, rendered.markdown);
-    briefPaths.push(rendered.path);
-    artifacts.push(ReportArtifactSchema.parse({
-      id: `report-${randomUUID()}`,
-      run_id: input.runId,
-      report_type: 'mini_brief',
-      demand_id: demand.id,
-      cadence: 'daily',
-      locale: 'en',
-      canonical_report_id: null,
-      period_start: input.date,
-      period_end: input.date,
-      path: rendered.path,
-      title: rendered.title,
-      generated_at: input.generatedAt,
-      metadata: {}
-    }));
-  }
-
-  const canonicalReports: ReportArtifact[] = [];
-  const locales = unique(input.locales);
+  const locales = orderedLocales(unique(input.locales));
   const cadences = unique(input.cadences);
+  const topThree = input.scores.slice(0, 3);
+  const briefPathsByLocale = new Map<ReportLocale, string[]>();
+  const reportIdsByKey = new Map<string, string>();
+  const reportsByLocaleAndCadence = new Map<string, ReportArtifact[]>();
 
-  if (cadences.includes('daily')) {
-    const daily = generateDailyReport({
-      date: input.date,
-      scores: input.scores,
-      demands: input.demands,
-      sources: input.sources,
-      evidence: input.market_evidence,
-      briefPaths
-    });
-    const report = await writeCanonicalReport({
-      runId: input.runId,
-      reportType: 'daily',
-      cadence: 'daily',
-      periodStart: input.date,
-      periodEnd: input.date,
-      reportsDir: input.reportsDir,
-      rendered: daily,
-      generatedAt: input.generatedAt
-    });
-    artifacts.push(report);
-    canonicalReports.push(report);
+  for (const locale of locales) {
+    const localizedBriefPaths: string[] = [];
+    for (const score of topThree) {
+      const demand = input.demands.find((item) => item.id === score.demand_id);
+      if (!demand) continue;
+      const evidence = input.market_evidence.filter((item) => item.demand_id === demand.id);
+      const rendered = generateMiniBrief({ date: input.date, demand, evidence, score, locale });
+      const path = join(input.briefsDir, input.date, rendered.path.split('/').pop() ?? 'brief.md');
+      await writeMarkdown(path, rendered.markdown);
+      localizedBriefPaths.push(rendered.path);
+      const key = `brief:${demand.id}:${locale}`;
+      const canonicalKey = `brief:${demand.id}:en`;
+      const report = await writeReportArtifact({
+        runId: input.runId,
+        reportType: 'mini_brief',
+        cadence: 'daily',
+        periodStart: input.date,
+        periodEnd: input.date,
+        reportsDir: input.briefsDir,
+        rendered,
+        generatedAt: input.generatedAt,
+        locale,
+        canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(canonicalKey) ?? null
+      });
+      artifacts.push(report);
+      reportIdsByKey.set(key, report.id);
+    }
+    briefPathsByLocale.set(locale, localizedBriefPaths);
   }
 
-  if (cadences.includes('weekly')) {
-    const period = reportPeriodFor(input.date, 'weekly');
-    const weekly = generateWeeklyReport({
-      periodStart: period.start,
-      periodEnd: period.end,
-      scores: input.scores,
-      demands: input.demands,
-      evidence: input.market_evidence,
-      dailyReports: canonicalReports.filter((report) => report.cadence === 'daily')
-    });
-    const report = await writeCanonicalReport({
-      runId: input.runId,
-      reportType: 'weekly',
-      cadence: 'weekly',
-      periodStart: period.start,
-      periodEnd: period.end,
-      reportsDir: input.reportsDir,
-      rendered: weekly,
-      generatedAt: input.generatedAt
-    });
-    artifacts.push(report);
-    canonicalReports.push(report);
-  }
-
-  if (cadences.includes('monthly')) {
-    const month = input.date.slice(0, 7);
-    const period = reportPeriodFor(input.date, 'monthly');
-    const monthly = generateMonthlyReport({
-      month,
-      weeklyReports: canonicalReports.filter((report) => report.cadence === 'weekly')
-    });
-    const report = await writeCanonicalReport({
-      runId: input.runId,
-      reportType: 'monthly',
-      cadence: 'monthly',
-      periodStart: period.start,
-      periodEnd: period.end,
-      reportsDir: input.reportsDir,
-      rendered: monthly,
-      generatedAt: input.generatedAt
-    });
-    artifacts.push(report);
-    canonicalReports.push(report);
-  }
-
-  if (locales.includes('zh-CN')) {
-    for (const report of canonicalReports) {
-      const translated = await translateReportVariant(input, report);
-      if (translated) artifacts.push(translated);
+  for (const cadence of cadences) {
+    for (const locale of locales) {
+      if (cadence === 'daily') {
+        const briefPaths = briefPathsByLocale.get(locale) ?? briefPathsByLocale.get('en') ?? [];
+        const daily = generateDailyReport({
+          date: input.date,
+          scores: input.scores,
+          demands: input.demands,
+          sources: input.sources,
+          evidence: input.market_evidence,
+          briefPaths,
+          locale
+        });
+        const report = await writeReportArtifact({
+          runId: input.runId,
+          reportType: 'daily',
+          cadence: 'daily',
+          periodStart: input.date,
+          periodEnd: input.date,
+          reportsDir: input.reportsDir,
+          rendered: daily,
+          generatedAt: input.generatedAt,
+          locale,
+          canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(`daily:${input.date}:en`) ?? null
+        });
+        artifacts.push(report);
+        reportIdsByKey.set(`daily:${input.date}:${locale}`, report.id);
+        appendLocaleCadenceReport(reportsByLocaleAndCadence, locale, cadence, report);
+      }
+      if (cadence === 'weekly') {
+        const period = reportPeriodFor(input.date, 'weekly');
+        const dailyReportsForLocale = reportsByLocaleAndCadence.get(`daily:${locale}`) ?? reportsByLocaleAndCadence.get('daily:en') ?? [];
+        const weekly = generateWeeklyReport({
+          periodStart: period.start,
+          periodEnd: period.end,
+          scores: input.scores,
+          demands: input.demands,
+          evidence: input.market_evidence,
+          dailyReports: dailyReportsForLocale,
+          locale
+        });
+        const report = await writeReportArtifact({
+          runId: input.runId,
+          reportType: 'weekly',
+          cadence: 'weekly',
+          periodStart: period.start,
+          periodEnd: period.end,
+          reportsDir: input.reportsDir,
+          rendered: weekly,
+          generatedAt: input.generatedAt,
+          locale,
+          canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(`weekly:${period.start}:${period.end}:en`) ?? null
+        });
+        artifacts.push(report);
+        reportIdsByKey.set(`weekly:${period.start}:${period.end}:${locale}`, report.id);
+        appendLocaleCadenceReport(reportsByLocaleAndCadence, locale, cadence, report);
+      }
+      if (cadence === 'monthly') {
+        const month = input.date.slice(0, 7);
+        const period = reportPeriodFor(input.date, 'monthly');
+        const weeklyReportsForLocale = reportsByLocaleAndCadence.get(`weekly:${locale}`) ?? reportsByLocaleAndCadence.get('weekly:en') ?? [];
+        const monthly = generateMonthlyReport({
+          month,
+          weeklyReports: weeklyReportsForLocale,
+          locale
+        });
+        const report = await writeReportArtifact({
+          runId: input.runId,
+          reportType: 'monthly',
+          cadence: 'monthly',
+          periodStart: period.start,
+          periodEnd: period.end,
+          reportsDir: input.reportsDir,
+          rendered: monthly,
+          generatedAt: input.generatedAt,
+          locale,
+          canonicalReportId: locale === 'en' ? null : reportIdsByKey.get(`monthly:${month}:en`) ?? null
+        });
+        artifacts.push(report);
+        reportIdsByKey.set(`monthly:${month}:${locale}`, report.id);
+        appendLocaleCadenceReport(reportsByLocaleAndCadence, locale, cadence, report);
+      }
     }
   }
 
@@ -388,6 +402,37 @@ async function writeCanonicalReport(input: {
   rendered: { path: string; markdown: string; title: string };
   generatedAt: string;
 }): Promise<ReportArtifact> {
+  return writeReportArtifact({
+    runId: input.runId,
+    reportType: input.reportType,
+    cadence: input.cadence,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    reportsDir: input.reportsDir,
+    rendered: input.rendered,
+    generatedAt: input.generatedAt,
+    locale: 'en',
+    canonicalReportId: null
+  });
+}
+
+async function writeMarkdown(path: string, markdown: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, markdown, 'utf8');
+}
+
+async function writeReportArtifact(input: {
+  runId: string;
+  reportType: ReportArtifact['report_type'];
+  cadence: ReportCadence;
+  periodStart: string;
+  periodEnd: string;
+  reportsDir: string;
+  rendered: { path: string; markdown: string; title: string };
+  generatedAt: string;
+  locale: ReportLocale;
+  canonicalReportId: string | null;
+}): Promise<ReportArtifact> {
   await writeMarkdown(resolveReportPath(input.reportsDir, input.rendered.path), input.rendered.markdown);
   return ReportArtifactSchema.parse({
     id: `report-${randomUUID()}`,
@@ -395,8 +440,8 @@ async function writeCanonicalReport(input: {
     report_type: input.reportType,
     demand_id: null,
     cadence: input.cadence,
-    locale: 'en',
-    canonical_report_id: null,
+    locale: input.locale,
+    canonical_report_id: input.canonicalReportId,
     period_start: input.periodStart,
     period_end: input.periodEnd,
     path: input.rendered.path,
@@ -406,66 +451,31 @@ async function writeCanonicalReport(input: {
   });
 }
 
-async function translateReportVariant(input: {
-  reportsDir: string;
-  translationLlm?: MarkdownTranslationLlm;
-  generatedAt: string;
-}, canonical: ReportArtifact): Promise<ReportArtifact | null> {
-  try {
-    const markdown = await readFile(resolveReportPath(input.reportsDir, canonical.path), 'utf8');
-    if (!input.translationLlm && needsSimplifiedChineseTranslation(markdown)) return null;
-    const translated = needsSimplifiedChineseTranslation(markdown)
-      ? await translateMarkdownReport({
-        markdown,
-        title: canonical.title,
-        terms: ['API', 'LLM', 'DemandRadar', 'Markdown', 'RedNote', 'Goofish'],
-        llm: input.translationLlm as MarkdownTranslationLlm
-      })
-      : markdown;
-    const path = localizedPath(canonical.path);
-    await writeMarkdown(resolveReportPath(input.reportsDir, path), translated);
-    return ReportArtifactSchema.parse({
-      id: `report-${randomUUID()}`,
-      run_id: canonical.run_id,
-      report_type: canonical.report_type,
-      demand_id: null,
-      cadence: canonical.cadence,
-      locale: 'zh-CN',
-      canonical_report_id: canonical.id,
-      period_start: canonical.period_start,
-      period_end: canonical.period_end,
-      path,
-      title: `${canonical.title} (zh-CN)`,
-      generated_at: input.generatedAt,
-      metadata: {}
-    });
-  } catch {
-    return null;
-  }
-}
-
-async function writeMarkdown(path: string, markdown: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, markdown, 'utf8');
-}
-
 function requiredLlm(options: RunPipelineOptions): DemandExtractionLlm & MarketResearchLlm {
   if (!options.llmClient) throw new Error('runPipeline requires llmClient unless fixtureData is provided');
   return options.llmClient;
 }
 
 function resolveReportPath(reportsDir: string, artifactPath: string): string {
-  return join(reportsDir, artifactPath.replace(/^reports\//, ''));
-}
-
-function localizedPath(path: string): string {
-  return path.replace(/\.md$/, '.zh-CN.md');
+  return join(reportsDir, artifactPath.replace(/^reports\//, '').replace(/^briefs\//, ''));
 }
 
 function unique<T>(values: T[]): T[] {
   return Array.from(new Set(values));
 }
 
-function isMarkdownTranslationLlm(value: unknown): value is MarkdownTranslationLlm {
-  return Boolean(value && typeof (value as MarkdownTranslationLlm).generateText === 'function');
+function orderedLocales(values: ReportLocale[]): ReportLocale[] {
+  return values.includes('en') ? ['en', ...values.filter((value) => value !== 'en')] : values;
+}
+
+function appendLocaleCadenceReport(
+  store: Map<string, ReportArtifact[]>,
+  locale: ReportLocale,
+  cadence: ReportCadence,
+  report: ReportArtifact
+): void {
+  const key = `${cadence}:${locale}`;
+  const list = store.get(key) ?? [];
+  list.push(report);
+  store.set(key, list);
 }
