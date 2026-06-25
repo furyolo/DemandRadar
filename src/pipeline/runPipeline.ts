@@ -15,7 +15,7 @@ import { HotspotSchema, PipelineResultSchema, ReportArtifactSchema, RunSchema } 
 import { generateDailyReport } from '../reports/dailyReport.js';
 import { generateMiniBrief } from '../reports/miniBrief.js';
 import { generateMonthlyReport } from '../reports/monthlyReport.js';
-import { translateMarkdownReport, type MarkdownTranslationLlm } from '../reports/translateReport.js';
+import { needsSimplifiedChineseTranslation, translateMarkdownReport, type MarkdownTranslationLlm } from '../reports/translateReport.js';
 import { generateWeeklyReport } from '../reports/weeklyReport.js';
 import { rankDemandScores, scoreOpportunity } from '../scoring/scoreOpportunity.js';
 import { openDatabase, type DemandRadarDatabase } from '../storage/database.js';
@@ -111,7 +111,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
 
     const scores = rankDemandScores(demands.map((demand) => {
       const evidence = market_evidence.filter((item) => item.demand_id === demand.id);
-      return scoreOpportunity(demand, evidence, undefined, now);
+      return scoreOpportunity(demand, evidence, undefined, now, sources);
     }), 10);
     const reportArtifacts = await writeReports({
       runId,
@@ -119,6 +119,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       reportsDir,
       briefsDir,
       demands,
+      sources,
       market_evidence,
       scores,
       generatedAt: now,
@@ -254,6 +255,7 @@ async function writeReports(input: {
   reportsDir: string;
   briefsDir: string;
   demands: Demand[];
+  sources: Source[];
   market_evidence: MarketEvidence[];
   scores: Score[];
   generatedAt: string;
@@ -300,6 +302,7 @@ async function writeReports(input: {
       date: input.date,
       scores: input.scores,
       demands: input.demands,
+      sources: input.sources,
       evidence: input.market_evidence,
       briefPaths
     });
@@ -408,15 +411,17 @@ async function translateReportVariant(input: {
   translationLlm?: MarkdownTranslationLlm;
   generatedAt: string;
 }, canonical: ReportArtifact): Promise<ReportArtifact | null> {
-  if (!input.translationLlm) return null;
   try {
     const markdown = await readFile(resolveReportPath(input.reportsDir, canonical.path), 'utf8');
-    const translated = await translateMarkdownReport({
-      markdown,
-      title: canonical.title,
-      terms: ['API', 'LLM', 'DemandRadar', 'Markdown'],
-      llm: input.translationLlm
-    });
+    if (!input.translationLlm && needsSimplifiedChineseTranslation(markdown)) return null;
+    const translated = needsSimplifiedChineseTranslation(markdown)
+      ? await translateMarkdownReport({
+        markdown,
+        title: canonical.title,
+        terms: ['API', 'LLM', 'DemandRadar', 'Markdown', 'RedNote', 'Goofish'],
+        llm: input.translationLlm as MarkdownTranslationLlm
+      })
+      : markdown;
     const path = localizedPath(canonical.path);
     await writeMarkdown(resolveReportPath(input.reportsDir, path), translated);
     return ReportArtifactSchema.parse({

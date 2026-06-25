@@ -1,4 +1,5 @@
 import type { Demand, MarketEvidence, Score } from '../pipeline/types.js';
+import { analyzeSupplyFit } from './supplyAnalysis.js';
 
 export interface MiniBriefInput {
   date: string;
@@ -17,6 +18,7 @@ export function generateMiniBrief(input: MiniBriefInput): RenderedMarkdown {
   const slug = slugify(input.demand.demand_statement, input.demand.id);
   const path = `briefs/${input.date}/${slug}.md`;
   const evidenceLines = input.evidence.map((item) => `- ${item.evidence_type}: ${item.value} (${item.source_url})`).join('\n');
+  const supply = analyzeSupplyFit(input);
   const markdown = `# ${input.demand.demand_statement}
 
 ## Target User
@@ -32,6 +34,13 @@ ${input.demand.pain_point}
 - Capture related demand signals
 - Preserve source-backed evidence
 - Rank opportunity quality
+
+## Supply-Side Fit
+
+- Existing supply: ${supply.existingSupply}
+- Supply gap: ${supply.supplyGap}
+- AI Agent fill: ${supply.aiAgentFill}
+- Transaction path: ${supply.transactionPath}
 
 ## Market Evidence
 

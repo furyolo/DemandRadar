@@ -90,6 +90,7 @@ pids/
 /briefs/
 /outputs/
 /exports/
+/.tmp/
 /tmp/
 /temp/
 *.db

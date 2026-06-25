@@ -37,3 +37,31 @@ export async function translateMarkdownReport(input: TranslateMarkdownReportInpu
     }
   ]);
 }
+
+export function needsSimplifiedChineseTranslation(markdown: string): boolean {
+  const prose = markdown
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/[A-Za-z0-9_-]+\.(md|ts|js|json|sqlite)/g, ' ');
+  const englishWordMatches = prose.match(/\b[A-Za-z]{4,}\b/g) ?? [];
+  const chineseMatches = prose.match(/[\u4e00-\u9fff]/g) ?? [];
+  if (englishWordMatches.length === 0) return false;
+  if (chineseMatches.length === 0) return true;
+
+  const englishWords = englishWordMatches.filter((word) => !PRESERVED_ENGLISH_TERMS.has(word.toLowerCase()));
+  return englishWords.length >= 8;
+}
+
+const PRESERVED_ENGLISH_TERMS = new Set([
+  'api',
+  'demandradar',
+  'markdown',
+  'rednote',
+  'goofish',
+  'sqlite',
+  'briefs',
+  'reports',
+  'source',
+  'urls',
+  'daily'
+]);

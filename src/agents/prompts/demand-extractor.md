@@ -15,3 +15,7 @@ Each demand must include:
 - `generated_at`
 
 Do not make unsupported claims. Every demand must cite at least one source URL.
+
+`current_alternatives` must capture source-backed existing providers, tools, services, marketplaces, agencies, or manual workarounds. Leave it empty when the sources do not support an existing-supply claim.
+
+Write `demand_statement` as a demand-supply transaction opportunity that can later be evaluated for current supply fit and AI Agent gap filling.

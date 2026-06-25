@@ -30,7 +30,7 @@ export function registerReportCommand(program: Command): void {
       if (options.print) {
         console.log(readFileSync(path, 'utf8'));
       } else {
-        console.log(path);
+        console.log(options.db ? path.replace(/\\/g, '/') : path);
       }
     });
 }

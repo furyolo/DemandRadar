@@ -11,14 +11,17 @@ describe('collectRedNoteHotspots', () => {
       records: {
         notes: [
           {
+            platform: 'rednote',
             url: 'https://www.xiaohongshu.com/explore/abc',
             title: 'AI 工具太难用了',
             content: '每天整理需求太痛苦，希望有自动化工具。',
             author: 'creator',
+            rednote_time_text: '昨天 23:25',
             likes: 100,
             collects: 20,
             comments: 5,
-            tags: ['AI', '效率']
+            tags: ['AI', '效率'],
+            raw: { platform: 'wrong-platform' }
           }
         ]
       }
@@ -26,7 +29,14 @@ describe('collectRedNoteHotspots', () => {
 
     expect(result.sources).toHaveLength(1);
     expect(result.sources[0]?.source_name).toBe('rednote');
-    expect(result.sources[0]?.raw).toMatchObject({ platform: 'rednote', author: 'creator' });
+    expect(result.sources[0]?.published_at).toBe('2026-06-17');
+    expect(result.sources[0]?.raw).toMatchObject({
+      platform: 'rednote',
+      author: 'creator',
+      rednote_time_text: '昨天 23:25',
+      fetched_at: '2026-06-18T00:00:00.000Z',
+      freshness_status: 'fresh'
+    });
     expect(result.hotspots[0]).toMatchObject({ domain: 'rednote', search_query: 'RedNote AI tools' });
     expect(result.hotspots[0]?.heat_score).toBeGreaterThan(50);
   });

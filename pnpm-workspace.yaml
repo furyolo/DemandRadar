@@ -1,0 +1,4 @@
+allowBuilds:
+  '@konbakuyomu/smart-search': false
+  better-sqlite3: true
+  esbuild: false

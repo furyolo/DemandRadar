@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Hotspot, Source } from '../pipeline/types.js';
 import { HotspotSchema, SourceSchema } from '../pipeline/types.js';
+import { buildRedNoteTimeMetadata } from '../time/rednoteTime.js';
 
 const RedNoteRecordSchema = z.object({
+  platform: z.literal('rednote').optional(),
   url: z.string().url(),
   title: z.string().min(1),
   content: z.string().optional(),
@@ -11,6 +13,8 @@ const RedNoteRecordSchema = z.object({
   author: z.string().optional(),
   author_url: z.string().url().optional(),
   published_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  rednote_time_text: z.string().nullable().optional(),
   likes: z.number().nonnegative().optional(),
   collects: z.number().nonnegative().optional(),
   comments: z.number().nonnegative().optional(),
@@ -42,6 +46,12 @@ export function collectRedNoteHotspots(options: CollectRedNoteOptions): { source
   const hotspots: Hotspot[] = [];
 
   for (const record of records) {
+    const time = buildRedNoteTimeMetadata({
+      publishedAt: record.published_at,
+      updatedAt: record.updated_at,
+      rednoteTimeText: record.rednote_time_text,
+      fetchedAt: options.generatedAt
+    });
     const source = SourceSchema.parse({
       id: `source-${randomUUID()}`,
       run_id: options.runId,
@@ -49,10 +59,11 @@ export function collectRedNoteHotspots(options: CollectRedNoteOptions): { source
       title: record.title,
       snippet: record.snippet ?? record.content ?? '',
       source_name: 'rednote',
-      published_at: record.published_at ?? null,
+      published_at: time.published_at,
       search_query: options.searchQuery,
       time_window: `${options.timeWindowDays}d`,
       raw: {
+        ...(record.raw ?? {}),
         platform: 'rednote',
         author: record.author,
         author_url: record.author_url,
@@ -60,7 +71,11 @@ export function collectRedNoteHotspots(options: CollectRedNoteOptions): { source
         collects: record.collects,
         comments: record.comments,
         tags: record.tags,
-        ...(record.raw ?? {})
+        updated_at: time.updated_at,
+        rednote_time_text: time.rednote_time_text,
+        fetched_at: time.fetched_at,
+        freshness_days: time.freshness_days,
+        freshness_status: time.freshness_status
       }
     });
     sources.push(source);

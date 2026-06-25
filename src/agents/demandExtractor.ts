@@ -37,8 +37,11 @@ export async function extractDemands(options: ExtractDemandsOptions): Promise<De
         'Extract source-backed product demand hypotheses with citations and confidence from 0 to 1.',
         'When the input contains one hotspot, return only the single strongest product demand for that hotspot.',
         'Every demand object must exactly include: id, run_id, hotspot_id, user_profile, pain_point, current_alternatives, demand_statement, citations, confidence, generated_at.',
+        'current_alternatives must list existing providers, tools, services, marketplaces, agencies, or manual workarounds mentioned or implied by the sources; leave it empty when unsupported.',
+        'Frame demand_statement so it can later be evaluated as a demand-supply transaction opportunity.',
         'Use the provided hotspot id for hotspot_id, the provided run id for run_id, and the provided generated_at value.',
-        'citations must contain objects with source_url and quote. Do not include unsupported claims.'
+        'citations must contain objects with source_url and quote. Do not include unsupported claims.',
+        'Write all user-facing fields in the dominant language of the provided source content. If the sources are primarily Chinese, write Simplified Chinese; do not switch to English.'
       ].join(' ')
     },
     {

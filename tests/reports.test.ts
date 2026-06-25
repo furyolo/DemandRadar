@@ -2,22 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { generateDailyReport } from '../src/reports/dailyReport.js';
 import { generateMiniBrief } from '../src/reports/miniBrief.js';
 import { generateMonthlyReport } from '../src/reports/monthlyReport.js';
-import { translateMarkdownReport } from '../src/reports/translateReport.js';
+import { needsSimplifiedChineseTranslation, translateMarkdownReport } from '../src/reports/translateReport.js';
 import { generateWeeklyReport } from '../src/reports/weeklyReport.js';
-import type { Demand, MarketEvidence, ReportArtifact, Score } from '../src/pipeline/types.js';
+import type { Demand, MarketEvidence, ReportArtifact, Score, Source } from '../src/pipeline/types.js';
 
 const now = '2026-06-18T00:00:00.000Z';
 
 describe('reports', () => {
   it('renders Mini Brief and daily report with deterministic paths and source URLs', () => {
     const demand = fixtureDemand();
-    const evidence = [fixtureEvidence()];
+    const evidence = [fixtureEvidence(), fixtureCompetitorEvidence()];
     const score = fixtureScore();
     const brief = generateMiniBrief({ date: '2026-06-18', demand, evidence, score });
     const daily = generateDailyReport({
       date: '2026-06-18',
       scores: [score],
       demands: [demand],
+      sources: [fixtureSource()],
       evidence,
       briefPaths: [brief.path]
     });
@@ -25,9 +26,18 @@ describe('reports', () => {
     expect(brief.path).toContain('briefs/2026-06-18/');
     expect(brief.markdown).toContain('https://example.com/report');
     expect(daily.path).toBe('reports/2026-06-18.md');
-    expect(daily.markdown).toContain('## Top 10');
+    expect(daily.markdown).toContain('## Top 10 Demand-Supply Matchups');
+    expect(daily.markdown).toContain('| Rank | Demand | Score | Existing Supply Fit | AI Agent Fill | Transaction Path |');
+    expect(daily.markdown).toContain('Visible but incomplete');
+    expect(daily.markdown).toContain('AI Agent');
     expect(daily.markdown).toContain('## Top 3 Mini Briefs');
     expect(daily.markdown).toContain('https://example.com/report');
+    expect(daily.markdown).toContain('[rednote] Manual research story');
+    expect(daily.markdown).toContain('published 2026-06-18');
+    expect(daily.markdown).toContain('freshness fresh');
+    expect(brief.markdown).toContain('## Supply-Side Fit');
+    expect(brief.markdown).toContain('Existing supply: Visible but incomplete');
+    expect(brief.markdown).toContain('Transaction path:');
   });
 
   it('uses demand id when Mini Brief title has no ASCII slug', () => {
@@ -93,6 +103,11 @@ describe('reports', () => {
     expect(translated).toContain('https://example.com/report');
     expect(translated).toContain('manual research');
   });
+
+  it('skips zh-CN translation when Markdown is already Chinese', () => {
+    expect(needsSimplifiedChineseTranslation('# 日报\n\n1. 家长需要上门家教服务。')).toBe(false);
+    expect(needsSimplifiedChineseTranslation('# Daily\n\nA platform that connects local college students with families seeking tutoring services.')).toBe(true);
+  });
 });
 
 function fixtureDemand(): Demand {
@@ -122,6 +137,35 @@ function fixtureEvidence(): MarketEvidence {
     time_window: '30d',
     confidence: 0.7,
     generated_at: now
+  };
+}
+
+function fixtureCompetitorEvidence(): MarketEvidence {
+  return {
+    ...fixtureEvidence(),
+    id: 'evidence-competitor-1',
+    evidence_type: 'competitor',
+    value: 'Analyst marketplaces and manual research agencies exist but still require manual synthesis',
+    source_url: 'https://example.com/competitor'
+  };
+}
+
+function fixtureSource(): Source {
+  return {
+    id: 'source-1',
+    run_id: 'run-1',
+    source_url: 'https://example.com/story',
+    title: 'Manual research story',
+    snippet: 'manual research',
+    source_name: 'rednote',
+    published_at: '2026-06-18',
+    search_query: 'market',
+    time_window: '30d',
+    raw: {
+      platform: 'rednote',
+      updated_at: '2026-06-18T00:00:00.000Z',
+      freshness_status: 'fresh'
+    }
   };
 }
 

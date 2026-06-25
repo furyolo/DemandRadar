@@ -10,9 +10,12 @@ import { DemandSchema, type Hotspot, type Source } from '../src/pipeline/types.j
 const now = '2026-06-18T00:00:00.000Z';
 
 class FakeLlm {
+  public messages: unknown[] = [];
+
   constructor(private readonly response: unknown) {}
 
-  async generateJson<T>(schema: z.ZodType<T>): Promise<T> {
+  async generateJson<T>(schema: z.ZodType<T>, messages: unknown[] = []): Promise<T> {
+    this.messages.push(...messages);
     return schema.parse(this.response);
   }
 }
@@ -28,6 +31,18 @@ describe('LLM agents', () => {
     expect(demands[0]?.citations[0]?.source_url).toBe('https://example.com/story');
   });
 
+  it('instructs demand extraction to preserve Chinese source language', async () => {
+    const llm = new FakeLlm(demandFixture);
+    await extractDemands({
+      hotspots: [hotspot()],
+      sources: [{ ...source(), snippet: '家长想找上门家教' }],
+      llm,
+      generatedAt: now
+    });
+
+    expect(JSON.stringify(llm.messages)).toContain('If the sources are primarily Chinese, write Simplified Chinese');
+  });
+
   it('parses valid market evidence fixture JSON', async () => {
     const demand = demandFixture.demands[0];
     if (!demand) throw new Error('expected demand fixture');
@@ -38,6 +53,20 @@ describe('LLM agents', () => {
       generatedAt: now
     });
     expect(evidence[0]?.source_url).toBe('https://example.com/report');
+  });
+
+  it('instructs market research to preserve Chinese demand language', async () => {
+    const llm = new FakeLlm(marketFixture);
+    const demand = demandFixture.demands[0];
+    if (!demand) throw new Error('expected demand fixture');
+    await researchMarketEvidence({
+      demand: { ...demand, demand_statement: '家长需要上门家教服务' },
+      sources: [source()],
+      llm,
+      generatedAt: now
+    });
+
+    expect(JSON.stringify(llm.messages)).toContain('If they are primarily Chinese, write Simplified Chinese');
   });
 
   it('normalizes batch market evidence ids and foreign keys', async () => {

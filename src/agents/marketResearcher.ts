@@ -43,11 +43,13 @@ export async function researchMarketEvidenceBatch(options: ResearchMarketEvidenc
       content: [
         'Return JSON only with a top-level "market_evidence" array.',
         'Estimate TAM, SAM, SOM, competitors, willingness-to-pay signals, or community signals when source-backed evidence is available for each demand.',
+        'Prioritize competitor evidence that explains whether current supply can already satisfy the demand and what gap remains.',
         'Every market_evidence object must exactly include: id, run_id, demand_id, evidence_type, value, source_url, search_query, time_window, confidence, generated_at.',
         'evidence_type must be one of: tam, sam, som, competitor, willingness_to_pay, community_signal.',
         'Use only the provided demand ids for demand_id. Use the provided run ids and generated_at value.',
-        'Return 2 to 5 market_evidence objects per demand when evidence is available. Return no objects for a demand rather than inventing evidence.',
-        'Do not include evidence without a valid source_url. Mark uncertainty through lower confidence.'
+        'Return 2 to 5 market_evidence objects per demand when evidence is available, including at least one competitor item when source-backed supply evidence exists. Return no objects for a demand rather than inventing evidence.',
+        'Do not include evidence without a valid source_url. Mark uncertainty through lower confidence.',
+        'Write all user-facing evidence values in the dominant language of the provided demands and sources. If they are primarily Chinese, write Simplified Chinese; do not switch to English.'
       ].join(' ')
     },
     {
