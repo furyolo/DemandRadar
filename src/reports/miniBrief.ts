@@ -1,4 +1,4 @@
-import type { Demand, MarketEvidence, ReportLocale, Score } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportLocale, Score, SupplyDemandAnalysis } from '../pipeline/types.js';
 import { analyzeSupplyFit } from './supplyAnalysis.js';
 
 export interface MiniBriefInput {
@@ -6,6 +6,7 @@ export interface MiniBriefInput {
   demand: Demand;
   evidence: MarketEvidence[];
   score: Score;
+  supplyAnalysis?: SupplyDemandAnalysis;
   locale?: ReportLocale;
 }
 
@@ -20,7 +21,7 @@ export function generateMiniBrief(input: MiniBriefInput): RenderedMarkdown {
   const slug = slugify(input.demand.demand_statement, input.demand.id);
   const path = locale === 'zh-CN' ? `briefs/${input.date}/${slug}.zh-CN.md` : `briefs/${input.date}/${slug}.md`;
   const evidenceLines = input.evidence.map((item) => `- ${evidenceTypeLabel(item.evidence_type, locale)}: ${item.value} (${item.source_url})`).join('\n');
-  const supply = analyzeSupplyFit({ ...input, locale });
+  const supply = analyzeSupplyFit({ ...input, analysis: input.supplyAnalysis, locale });
   const markdown = locale === 'zh-CN'
     ? `# ${input.demand.demand_statement}
 

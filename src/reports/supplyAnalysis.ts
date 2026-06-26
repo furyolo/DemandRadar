@@ -1,6 +1,6 @@
-import type { Demand, MarketEvidence, Score } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, Score, SupplyDemandAnalysis as StructuredSupplyDemandAnalysis } from '../pipeline/types.js';
 import type { ReportLocale } from '../pipeline/types.js';
-import { analyzeCreatorFit } from '../scoring/creatorFit.js';
+import { fallbackSupplyDemandAnalysis } from '../scoring/supplyDemandFallback.js';
 
 export interface SupplyAnalysis {
   creatorFit: string;
@@ -15,65 +15,85 @@ export function analyzeSupplyFit(input: {
   demand: Demand;
   evidence: MarketEvidence[];
   score: Score;
+  analysis?: StructuredSupplyDemandAnalysis;
   locale?: ReportLocale;
 }): SupplyAnalysis {
   const locale = input.locale ?? 'en';
-  const creator = analyzeCreatorFit({ demand: input.demand, evidence: input.evidence, locale });
-  const competitorEvidence = input.evidence.filter((item) => item.evidence_type === 'competitor');
-  const visibleAlternatives = input.demand.current_alternatives.filter((item) => item.trim().length > 0);
-  const visibleSupply = [
-    ...visibleAlternatives.map((item) => locale === 'zh-CN' ? `当前替代方案：${item}` : `current alternative: ${item}`),
-    ...competitorEvidence.map((item) => locale === 'zh-CN' ? `竞品/供给证据：${item.value}` : `competitor evidence: ${item.value}`)
-  ];
+  if (input.analysis) return fromStructuredAnalysis(input.analysis, locale);
+  return fromStructuredAnalysis(fallbackSupplyDemandAnalysis({
+    demand: input.demand,
+    evidence: input.evidence,
+    generatedAt: input.score.generated_at,
+    locale
+  }), locale);
+}
 
-  const existingSupply = visibleSupply.length > 0
-    ? locale === 'zh-CN'
-      ? `可见但不完整：${visibleSupply.slice(0, 3).join('； ')}`
-      : `Visible but incomplete - ${visibleSupply.slice(0, 3).join('; ')}`
-    : locale === 'zh-CN'
-      ? '本次未识别到有来源支撑的现有供给'
-      : 'No source-backed existing supply identified in this run';
-  const supplyGap = visibleSupply.length > 0
-    ? locale === 'zh-CN'
-      ? `需要验证现有供给是否真的解决了痛点：${input.demand.pain_point}`
-      : `Validate whether visible supply resolves the stated pain point: ${input.demand.pain_point}`
-    : locale === 'zh-CN'
-      ? `供给发现缺口：本次没有抓到可直接满足该痛点的现有服务、提供方或 workaround：${input.demand.pain_point}`
-      : `Supply discovery gap - no current provider or workaround was captured for: ${input.demand.pain_point}`;
-  const aiAgentFill = creator.aiAgentFit;
-  const transactionPath = transactionRoute(creator.mode, visibleSupply.length > 0, locale);
-  const thirdPartyPath = creator.thirdPartyPath;
-
+function fromStructuredAnalysis(analysis: StructuredSupplyDemandAnalysis, locale: ReportLocale): SupplyAnalysis {
+  const zh = locale === 'zh-CN';
   return {
-    creatorFit: creator.personalFit,
-    existingSupply,
-    supplyGap,
-    aiAgentFill,
-    transactionPath,
-    thirdPartyPath
+    creatorFit: zh
+      ? `${creatorStatusLabel(analysis.creator_capability_fit.status, locale)}：${analysis.creator_capability_fit.specific_reason}${formatListSuffix('缺口', analysis.creator_capability_fit.missing_capability, locale)}`
+      : `${creatorStatusLabel(analysis.creator_capability_fit.status, locale)}: ${analysis.creator_capability_fit.specific_reason}${formatListSuffix('gaps', analysis.creator_capability_fit.missing_capability, locale)}`,
+    existingSupply: zh
+      ? `${existingSupplyLabel(analysis.existing_supply_fit.status, locale)}：${analysis.existing_supply_fit.matched_supply}；未解决：${analysis.existing_supply_fit.unresolved_gap}`
+      : `${existingSupplyLabel(analysis.existing_supply_fit.status, locale)}: ${analysis.existing_supply_fit.matched_supply}; unresolved: ${analysis.existing_supply_fit.unresolved_gap}`,
+    supplyGap: analysis.existing_supply_fit.unresolved_gap,
+    aiAgentFill: zh
+      ? `${agentLabel(analysis.ai_agent_fill.feasibility, locale)}：可做 ${joinItems(analysis.ai_agent_fill.can_do, locale)}；不能做 ${joinItems(analysis.ai_agent_fill.cannot_do, locale)}；需要 ${joinItems(analysis.ai_agent_fill.required_inputs, locale)}`
+      : `${agentLabel(analysis.ai_agent_fill.feasibility, locale)}: can do ${joinItems(analysis.ai_agent_fill.can_do, locale)}; cannot do ${joinItems(analysis.ai_agent_fill.cannot_do, locale)}; needs ${joinItems(analysis.ai_agent_fill.required_inputs, locale)}`,
+    transactionPath: zh
+      ? `先处理可由个人/AI 承接的部分，再在“${analysis.third_party_supply_path.handoff_boundary}”处转给${analysis.third_party_supply_path.provider_type}。`
+      : `Handle the creator/AI-owned steps first, then hand off at "${analysis.third_party_supply_path.handoff_boundary}" to ${analysis.third_party_supply_path.provider_type}.`,
+    thirdPartyPath: zh
+      ? `${analysis.third_party_supply_path.needed ? '需要' : '暂不需要'}：${analysis.third_party_supply_path.provider_type}；原因：${analysis.third_party_supply_path.why}；边界：${analysis.third_party_supply_path.handoff_boundary}`
+      : `${analysis.third_party_supply_path.needed ? 'Needed' : 'Not needed yet'}: ${analysis.third_party_supply_path.provider_type}; why: ${analysis.third_party_supply_path.why}; boundary: ${analysis.third_party_supply_path.handoff_boundary}`
   };
 }
 
-function transactionRoute(
-  mode: ReturnType<typeof analyzeCreatorFit>['mode'],
-  hasVisibleSupply: boolean,
-  locale: ReportLocale
-): string {
-  if (mode === 'direct') {
-    return locale === 'zh-CN'
-      ? '先由个人能力直接做 MVP 或服务化验证，再决定是否引入现有供给扩容。'
-      : 'Start with creator-led MVP or service delivery, then add existing supply only for scale.';
+function creatorStatusLabel(status: StructuredSupplyDemandAnalysis['creator_capability_fit']['status'], locale: ReportLocale): string {
+  if (locale !== 'zh-CN') return status;
+  switch (status) {
+    case 'direct':
+      return '可直接切入';
+    case 'orchestrate':
+      return '适合产品化/编排';
+    case 'not_fit':
+      return '不适合直接履约';
   }
-  if (mode === 'ai_agent_augmented') {
-    return locale === 'zh-CN'
-      ? '先用个人判断和 AI Agent 作为临时供给完成接单、执行和交付验证。'
-      : 'Use creator judgment plus an AI Agent as provisional supply for intake, execution, and delivery validation.';
+}
+
+function existingSupplyLabel(status: StructuredSupplyDemandAnalysis['existing_supply_fit']['status'], locale: ReportLocale): string {
+  if (locale !== 'zh-CN') return status;
+  switch (status) {
+    case 'sufficient':
+      return '供给充分';
+    case 'partial':
+      return '供给部分满足';
+    case 'missing':
+      return '供给缺失';
+    case 'unknown':
+      return '供给未知';
   }
-  return hasVisibleSupply
-    ? locale === 'zh-CN'
-      ? '先把需求路由给现有供给，再用 AI Agent 做需求确认、匹配比较和未闭环步骤补足。'
-      : 'Route demand to existing supply first, then use an AI Agent to qualify intent, compare fit, and fill unresolved workflow steps.'
-    : locale === 'zh-CN'
-      ? '先寻找第三方供给，AI Agent 只负责获客、分诊、资料准备和转介。'
-      : 'Find third-party supply first; use the AI Agent only for acquisition, triage, preparation, and referral.';
+}
+
+function agentLabel(feasibility: StructuredSupplyDemandAnalysis['ai_agent_fill']['feasibility'], locale: ReportLocale): string {
+  if (locale !== 'zh-CN') return feasibility;
+  switch (feasibility) {
+    case 'high':
+      return 'Agent 可行性高';
+    case 'medium':
+      return 'Agent 可行性中';
+    case 'low':
+      return 'Agent 可行性低';
+  }
+}
+
+function formatListSuffix(label: string, items: string[], locale: ReportLocale): string {
+  if (items.length === 0) return '';
+  return locale === 'zh-CN' ? `；${label}：${items.join('、')}` : `; ${label}: ${items.join(', ')}`;
+}
+
+function joinItems(items: string[], locale: ReportLocale): string {
+  if (items.length === 0) return locale === 'zh-CN' ? '无明确证据' : 'no explicit evidence';
+  return items.join(locale === 'zh-CN' ? '、' : ', ');
 }

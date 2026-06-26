@@ -93,6 +93,43 @@ export const ScoreSchema = z.object({
   generated_at: z.string().datetime()
 }).strict();
 
+export const SupplyDemandAnalysisSchema = z.object({
+  id: z.string().min(1),
+  run_id: z.string().min(1),
+  demand_id: z.string().min(1),
+  creator_capability_fit: z.object({
+    status: z.enum(['direct', 'orchestrate', 'not_fit']),
+    specific_reason: z.string().min(1),
+    missing_capability: z.array(z.string()).default([])
+  }).strict(),
+  existing_supply_fit: z.object({
+    status: z.enum(['sufficient', 'partial', 'missing', 'unknown']),
+    matched_supply: z.string().min(1),
+    unresolved_gap: z.string().min(1)
+  }).strict(),
+  ai_agent_fill: z.object({
+    feasibility: z.enum(['high', 'medium', 'low']),
+    can_do: z.array(z.string()).default([]),
+    cannot_do: z.array(z.string()).default([]),
+    required_inputs: z.array(z.string()).default([])
+  }).strict(),
+  third_party_supply_path: z.object({
+    needed: z.boolean(),
+    provider_type: z.string().min(1),
+    why: z.string().min(1),
+    handoff_boundary: z.string().min(1)
+  }).strict(),
+  scoring_assessment: z.object({
+    demand_strength: z.enum(['high', 'medium', 'low', 'none']),
+    supply_gap: z.enum(['severe', 'clear', 'minor', 'none', 'unknown']),
+    agent_feasibility: z.enum(['high', 'medium', 'low']),
+    payment_signal: z.enum(['explicit', 'inferred', 'weak', 'none']),
+    evidence_quality: z.enum(['strong', 'medium', 'weak'])
+  }).strict(),
+  confidence: z.number().min(0).max(1),
+  generated_at: z.string().datetime()
+}).strict();
+
 export const ReportCadenceSchema = z.enum(['daily', 'weekly', 'monthly']);
 export const ReportLocaleSchema = z.enum(['en', 'zh-CN']);
 
@@ -118,6 +155,7 @@ export const PipelineResultSchema = z.object({
   hotspots: z.array(HotspotSchema),
   demands: z.array(DemandSchema),
   market_evidence: z.array(MarketEvidenceSchema),
+  supply_analyses: z.array(SupplyDemandAnalysisSchema).default([]),
   scores: z.array(ScoreSchema),
   reports: z.array(ReportArtifactSchema)
 }).strict();
@@ -129,6 +167,7 @@ export type Hotspot = z.infer<typeof HotspotSchema>;
 export type Demand = z.infer<typeof DemandSchema>;
 export type MarketEvidence = z.infer<typeof MarketEvidenceSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
+export type SupplyDemandAnalysis = z.infer<typeof SupplyDemandAnalysisSchema>;
 export type ReportCadence = z.infer<typeof ReportCadenceSchema>;
 export type ReportLocale = z.infer<typeof ReportLocaleSchema>;
 export type ReportArtifact = z.infer<typeof ReportArtifactSchema>;

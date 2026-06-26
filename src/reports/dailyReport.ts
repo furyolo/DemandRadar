@@ -1,4 +1,4 @@
-import type { Demand, MarketEvidence, ReportLocale, Score, Source } from '../pipeline/types.js';
+import type { Demand, MarketEvidence, ReportLocale, Score, Source, SupplyDemandAnalysis } from '../pipeline/types.js';
 import { analyzeSupplyFit } from './supplyAnalysis.js';
 
 export interface DailyReportInput {
@@ -7,6 +7,7 @@ export interface DailyReportInput {
   demands: Demand[];
   sources?: Source[];
   evidence: MarketEvidence[];
+  supplyAnalyses?: SupplyDemandAnalysis[];
   briefPaths: string[];
   locale?: ReportLocale;
 }
@@ -20,6 +21,7 @@ export interface DailyReport {
 export function generateDailyReport(input: DailyReportInput): DailyReport {
   const locale = input.locale ?? 'en';
   const demandById = new Map(input.demands.map((demand) => [demand.id, demand]));
+  const analysisByDemandId = new Map((input.supplyAnalyses ?? []).map((analysis) => [analysis.demand_id, analysis]));
   const top10 = input.scores.slice(0, 10);
   const ranking = top10.map((score, index) => {
     const demand = demandById.get(score.demand_id);
@@ -32,6 +34,7 @@ export function generateDailyReport(input: DailyReportInput): DailyReport {
       demand,
       evidence: input.evidence.filter((item) => item.demand_id === demand.id),
       score,
+      analysis: analysisByDemandId.get(demand.id),
       locale
     });
     return `| ${index + 1} | ${escapeTableCell(demand.demand_statement)} | ${score.total_score}/100 | ${escapeTableCell(supply.creatorFit)} | ${escapeTableCell(supply.existingSupply)} | ${escapeTableCell(supply.aiAgentFill)} | ${escapeTableCell(supply.thirdPartyPath)} |`;

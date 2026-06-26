@@ -67,6 +67,42 @@ function fixtureResult(): PipelineResult {
       confidence: 0.7,
       generated_at: now
     }],
+    supply_analyses: [{
+      id: 'supply-analysis-demand-1',
+      run_id: 'run-1',
+      demand_id: 'demand-1',
+      creator_capability_fit: {
+        status: 'direct',
+        specific_reason: 'Can build the research workflow MVP directly.',
+        missing_capability: []
+      },
+      existing_supply_fit: {
+        status: 'partial',
+        matched_supply: 'Manual research',
+        unresolved_gap: 'Manual workflows are slow.'
+      },
+      ai_agent_fill: {
+        feasibility: 'high',
+        can_do: ['Collect and summarize signals'],
+        cannot_do: ['Guarantee market demand'],
+        required_inputs: ['Source list']
+      },
+      third_party_supply_path: {
+        needed: false,
+        provider_type: 'not the first path',
+        why: 'No specialist fulfillment required for the MVP.',
+        handoff_boundary: 'Add external providers only for scale.'
+      },
+      scoring_assessment: {
+        demand_strength: 'high',
+        supply_gap: 'clear',
+        agent_feasibility: 'high',
+        payment_signal: 'inferred',
+        evidence_quality: 'medium'
+      },
+      confidence: 0.72,
+      generated_at: now
+    }],
     scores: [{
       id: 'score-1',
       run_id: 'run-1',
@@ -102,6 +138,7 @@ describe('DemandRadarRepository', () => {
     repository.savePipelineResult(fixtureResult());
 
     expect(repository.listTopScores('run-1', 10)).toHaveLength(1);
+    expect(repository.listSupplyAnalyses('run-1')[0]?.existing_supply_fit.unresolved_gap).toBe('Manual workflows are slow.');
     expect(repository.getDemandDetail('demand-1')?.citations[0]?.source_url).toBe('https://example.com/story');
     expect(repository.getRunSummary('run-1')).toMatchObject({
       report_count: 1,

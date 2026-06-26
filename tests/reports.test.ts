@@ -8,7 +8,7 @@ import {
   translateMarkdownReport
 } from '../src/reports/translateReport.js';
 import { generateWeeklyReport } from '../src/reports/weeklyReport.js';
-import type { Demand, MarketEvidence, ReportArtifact, Score, Source } from '../src/pipeline/types.js';
+import type { Demand, MarketEvidence, ReportArtifact, Score, Source, SupplyDemandAnalysis } from '../src/pipeline/types.js';
 
 const now = '2026-06-18T00:00:00.000Z';
 
@@ -32,7 +32,7 @@ describe('reports', () => {
     expect(daily.path).toBe('reports/2026-06-18.md');
     expect(daily.markdown).toContain('## Top 10 Demand-Supply Matchups');
     expect(daily.markdown).toContain('| Rank | Demand | Score | Creator Capability Fit | Existing Supply Fit | AI Agent Fill | Third-Party Supply Path |');
-    expect(daily.markdown).toContain('Visible but incomplete');
+    expect(daily.markdown).toContain('partial: manual');
     expect(daily.markdown).toContain('AI Agent');
     expect(daily.markdown).toContain('## Top 3 Mini Briefs');
     expect(daily.markdown).toContain('https://example.com/report');
@@ -41,8 +41,9 @@ describe('reports', () => {
     expect(daily.markdown).toContain('freshness fresh');
     expect(brief.markdown).toContain('## Supply-Side Fit');
     expect(brief.markdown).toContain('Creator capability fit:');
-    expect(brief.markdown).toContain('Existing supply: Visible but incomplete');
+    expect(brief.markdown).toContain('Existing supply: partial');
     expect(brief.markdown).toContain('Third-party supply path:');
+    expect(daily.markdown).not.toContain('Useful as leverage for lead capture, structured analysis, prototype generation, and delivery review');
   });
 
   it('renders zh-CN report surfaces without English template labels', () => {
@@ -62,12 +63,45 @@ describe('reports', () => {
 
     expect(brief.path).toBe('briefs/2026-06-18/automate-opportunity-research.zh-CN.md');
     expect(brief.markdown).toContain('## 供给侧匹配');
-    expect(brief.markdown).toContain('现有供给：可见但不完整');
+    expect(brief.markdown).toContain('现有供给：供给部分满足');
     expect(daily.path).toBe('reports/2026-06-18.zh-CN.md');
     expect(daily.markdown).toContain('## 需求-供给匹配前十');
     expect(daily.markdown).toContain('| 排名 | 需求 | 分数 | 个人能力匹配 | 现有供给匹配 | AI Agent 补足 | 第三方供给路径 |');
     expect(daily.markdown).not.toContain('## Report Focus');
     expect(daily.markdown).not.toContain('Existing Supply Fit');
+    expect(daily.markdown).not.toContain('可作为放大器：用于线索采集、结构化分析、原型生成和交付复核');
+    expect(daily.markdown).not.toContain('第三方不是首选；仅在规模化、合规或专业背书不足时补位');
+  });
+
+  it('renders structured supply-demand analysis instead of generic fallback text', () => {
+    const demand = fixtureDemand();
+    const evidence = [fixtureEvidence()];
+    const score = fixtureScore();
+    const supplyAnalysis = fixtureSupplyAnalysis();
+    const brief = generateMiniBrief({
+      date: '2026-06-18',
+      demand,
+      evidence,
+      score,
+      supplyAnalysis,
+      locale: 'zh-CN'
+    });
+    const daily = generateDailyReport({
+      date: '2026-06-18',
+      scores: [score],
+      demands: [demand],
+      sources: [fixtureSource()],
+      evidence,
+      supplyAnalyses: [supplyAnalysis],
+      briefPaths: [brief.path],
+      locale: 'zh-CN'
+    });
+
+    expect(brief.markdown).toContain('AI 可以汇总小红书和网页证据');
+    expect(brief.markdown).toContain('不能替代真实用户访谈');
+    expect(brief.markdown).toContain('第三方供给路径：需要：访谈招募服务商');
+    expect(daily.markdown).toContain('现有研究工具能收集资料，但不能判断用户是否真的愿意付费');
+    expect(daily.markdown).not.toContain('可作为放大器：用于线索采集、结构化分析、原型生成和交付复核');
   });
 
   it('uses demand id when Mini Brief title has no ASCII slug', () => {
@@ -259,6 +293,45 @@ function fixtureScore(): Score {
     total_score: 75,
     explanation: 'source-backed',
     confidence: 0.8,
+    generated_at: now
+  };
+}
+
+function fixtureSupplyAnalysis(): SupplyDemandAnalysis {
+  return {
+    id: 'supply-analysis-demand-1',
+    run_id: 'run-1',
+    demand_id: 'demand-1',
+    creator_capability_fit: {
+      status: 'orchestrate',
+      specific_reason: '个人可以搭建机会发现工作流和证据库，但不能单独完成真实付费意愿验证。',
+      missing_capability: ['真实用户访谈样本', '垂直行业判断']
+    },
+    existing_supply_fit: {
+      status: 'partial',
+      matched_supply: '现有研究工具能收集资料，但不能判断用户是否真的愿意付费',
+      unresolved_gap: '缺少把需求证据转成可成交线索的验证环节'
+    },
+    ai_agent_fill: {
+      feasibility: 'medium',
+      can_do: ['AI 可以汇总小红书和网页证据', '生成访谈提纲'],
+      cannot_do: ['不能替代真实用户访谈'],
+      required_inputs: ['目标用户名单', '访谈问题']
+    },
+    third_party_supply_path: {
+      needed: true,
+      provider_type: '访谈招募服务商',
+      why: '需要接触真实目标用户验证支付意愿。',
+      handoff_boundary: 'AI 产出访谈提纲后，由服务商招募并执行访谈。'
+    },
+    scoring_assessment: {
+      demand_strength: 'medium',
+      supply_gap: 'clear',
+      agent_feasibility: 'medium',
+      payment_signal: 'inferred',
+      evidence_quality: 'medium'
+    },
+    confidence: 0.78,
     generated_at: now
   };
 }

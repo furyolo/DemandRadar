@@ -7,9 +7,10 @@ import {
   reports as reportsTable,
   runs as runsTable,
   scores as scoresTable,
-  sources as sourcesTable
+  sources as sourcesTable,
+  supplyAnalyses as supplyAnalysesTable
 } from './schema.js';
-import { MarketEvidenceSchema, ReportArtifactSchema, RunSchema } from '../pipeline/types.js';
+import { MarketEvidenceSchema, ReportArtifactSchema, RunSchema, SupplyDemandAnalysisSchema } from '../pipeline/types.js';
 import type {
   Demand,
   DemandRadarRun,
@@ -18,6 +19,7 @@ import type {
   PipelineResult,
   ReportArtifact,
   Score,
+  SupplyDemandAnalysis,
   Source
 } from '../pipeline/types.js';
 
@@ -95,6 +97,17 @@ export class DemandRadarRepository {
     this.db.orm.insert(scoresTable).values(scores.map((score) => ({ ...score, dimension_scores: encode(score.dimension_scores) }))).run();
   }
 
+  saveSupplyAnalyses(analyses: SupplyDemandAnalysis[]): void {
+    if (analyses.length === 0) return;
+    this.db.orm.insert(supplyAnalysesTable).values(analyses.map((analysis) => ({
+      id: analysis.id,
+      run_id: analysis.run_id,
+      demand_id: analysis.demand_id,
+      analysis: encode(analysis),
+      generated_at: analysis.generated_at
+    }))).run();
+  }
+
   saveReportArtifact(report: ReportArtifact): void {
     this.db.orm.insert(reportsTable).values(serializeReport(report)).run();
   }
@@ -118,6 +131,15 @@ export class DemandRadarRepository {
       if (result.market_evidence.length > 0) tx.insert(marketEvidenceTable).values(result.market_evidence).run();
       if (result.scores.length > 0) {
         tx.insert(scoresTable).values(result.scores.map((score) => ({ ...score, dimension_scores: encode(score.dimension_scores) }))).run();
+      }
+      if (result.supply_analyses.length > 0) {
+        tx.insert(supplyAnalysesTable).values(result.supply_analyses.map((analysis) => ({
+          id: analysis.id,
+          run_id: analysis.run_id,
+          demand_id: analysis.demand_id,
+          analysis: encode(analysis),
+          generated_at: analysis.generated_at
+        }))).run();
       }
       if (result.reports.length > 0) tx.insert(reportsTable).values(result.reports.map(serializeReport)).run();
     });
@@ -247,6 +269,16 @@ export class DemandRadarRepository {
       .orderBy(marketEvidenceTable.id)
       .all()
       .map((row) => MarketEvidenceSchema.parse(row));
+  }
+
+  listSupplyAnalyses(runId: string): SupplyDemandAnalysis[] {
+    return this.db.orm
+      .select()
+      .from(supplyAnalysesTable)
+      .where(eq(supplyAnalysesTable.run_id, runId))
+      .orderBy(supplyAnalysesTable.id)
+      .all()
+      .map((row) => SupplyDemandAnalysisSchema.parse(decode<unknown>(row.analysis)));
   }
 }
 

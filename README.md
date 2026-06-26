@@ -18,11 +18,14 @@ Copy `config/.env.example` to a local, uncommitted env file and provide OpenAI-c
 LLM_BASE_URL=
 LLM_API_KEY=
 LLM_MODEL=
+SUPPLY_ANALYSIS_LLM_MODEL=
 SMART_SEARCH_BIN=smart-search
 DEMANDRADAR_DB_PATH=data/demandradar.sqlite
 REPORTS_DIR=reports
 BRIEFS_DIR=briefs
 ```
+
+`SUPPLY_ANALYSIS_LLM_MODEL` is optional. When set, DemandRadar uses that model for structured supply-demand fit analysis and keeps `LLM_MODEL` for extraction/research; when omitted, the analysis stage reuses `LLM_MODEL`.
 
 Real `.env` files, tokens, and runtime outputs are ignored by Git.
 

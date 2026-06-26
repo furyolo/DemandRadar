@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { extractDemands, type DemandExtractionLlm } from '../agents/demandExtractor.js';
 import { researchMarketEvidence, researchMarketEvidenceBatch, type MarketResearchLlm } from '../agents/marketResearcher.js';
+import { analyzeSupplyDemand, type SupplyDemandAnalysisLlm } from '../agents/supplyDemandAnalyst.js';
 import { classifyHotspot } from '../cleaning/classify.js';
 import { dedupeHotspots } from '../cleaning/dedupe.js';
 import { normalizeSource } from '../cleaning/normalize.js';
@@ -10,7 +11,7 @@ import { rankHotspots } from '../cleaning/rankHotspots.js';
 import type { SmartSearchClient } from '../integrations/smartSearchClient.js';
 import { collectHotspots } from '../ingest/hotspotCollector.js';
 import { collectRedNoteHotspots } from '../ingest/rednoteCollector.js';
-import type { Demand, Hotspot, MarketEvidence, PipelineResult, ReportArtifact, ReportCadence, ReportLocale, Score, Source } from './types.js';
+import type { Demand, Hotspot, MarketEvidence, PipelineResult, ReportArtifact, ReportCadence, ReportLocale, Score, Source, SupplyDemandAnalysis } from './types.js';
 import { HotspotSchema, PipelineResultSchema, ReportArtifactSchema, RunSchema } from './types.js';
 import { generateDailyReport } from '../reports/dailyReport.js';
 import { generateMiniBrief } from '../reports/miniBrief.js';
@@ -18,6 +19,7 @@ import { generateMonthlyReport } from '../reports/monthlyReport.js';
 import { generateReaderTranslationZhCn, needsSimplifiedChineseTranslation, type MarkdownTranslationLlm } from '../reports/translateReport.js';
 import { generateWeeklyReport } from '../reports/weeklyReport.js';
 import { rankDemandScores, scoreOpportunity } from '../scoring/scoreOpportunity.js';
+import { fallbackSupplyDemandAnalysis } from '../scoring/supplyDemandFallback.js';
 import { openDatabase, type DemandRadarDatabase } from '../storage/database.js';
 import { DemandRadarRepository } from '../storage/repositories.js';
 import { reportPeriodFor } from '../time/reportDate.js';
@@ -31,10 +33,12 @@ export interface RunPipelineOptions {
   briefsDir?: string;
   smartSearchClient?: Pick<SmartSearchClient, 'exaSearch'>;
   llmClient?: DemandExtractionLlm & MarketResearchLlm;
+  supplyAnalysisLlmClient?: SupplyDemandAnalysisLlm;
   repository?: DemandRadarRepository;
   clock?: () => Date;
   marketEvidenceBatchSize?: number;
   marketEvidenceConcurrency?: number;
+  supplyAnalysisLimit?: number;
   cadences?: ReportCadence[];
   locales?: ReportLocale[];
   translationLlm?: MarkdownTranslationLlm;
@@ -56,6 +60,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
   const briefsDir = options.briefsDir ?? 'briefs';
   const marketEvidenceBatchSize = normalizePositiveInteger(options.marketEvidenceBatchSize, 3);
   const marketEvidenceConcurrency = normalizePositiveInteger(options.marketEvidenceConcurrency, 3);
+  const supplyAnalysisLimit = normalizePositiveInteger(options.supplyAnalysisLimit, 10);
   const log = (message: string): void => {
     if (!options.fixtureMode) console.error(`[DemandRadar] ${message}`);
   };
@@ -112,9 +117,34 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
     });
     log(`Researched ${market_evidence.length} market evidence items for ${demands.length} demands with batchSize=${marketEvidenceBatchSize}, concurrency=${marketEvidenceConcurrency}`);
 
-    const scores = rankDemandScores(demands.map((demand) => {
+    const preliminaryScores = rankDemandScores(demands.map((demand) => {
       const evidence = market_evidence.filter((item) => item.demand_id === demand.id);
       return scoreOpportunity(demand, evidence, undefined, now, sources, outputLocale);
+    }), Math.max(10, supplyAnalysisLimit));
+    const supply_analyses = await analyzeTopSupplyDemand({
+      demands,
+      scores: preliminaryScores,
+      sources,
+      evidence: market_evidence,
+      llm: options.supplyAnalysisLlmClient ?? options.llmClient,
+      generatedAt: now,
+      outputLocale,
+      limit: supplyAnalysisLimit,
+      fixtureMode: options.fixtureMode,
+      onFallback: (error) => log(`Supply-demand analysis fallback: ${error instanceof Error ? error.message : String(error)}`)
+    });
+    const completeSupplyAnalyses = completeSupplyAnalysisCoverage({
+      demands,
+      analyses: supply_analyses,
+      evidence: market_evidence,
+      generatedAt: now,
+      outputLocale
+    });
+    log(`Analyzed ${supply_analyses.length} supply-demand fit records for top opportunities`);
+    const analysisByDemandId = new Map(completeSupplyAnalyses.map((analysis) => [analysis.demand_id, analysis]));
+    const scores = rankDemandScores(demands.map((demand) => {
+      const evidence = market_evidence.filter((item) => item.demand_id === demand.id);
+      return scoreOpportunity(demand, evidence, undefined, now, sources, outputLocale, analysisByDemandId.get(demand.id));
     }), 10);
     const reportArtifacts = await writeReports({
       runId,
@@ -124,6 +154,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       demands,
       sources,
       market_evidence,
+      supply_analyses: completeSupplyAnalyses,
       scores,
       generatedAt: now,
       cadences: options.cadences ?? ['daily'],
@@ -138,6 +169,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       hotspots,
       demands,
       market_evidence,
+      supply_analyses: completeSupplyAnalyses,
       scores,
       reports: reportArtifacts
     });
@@ -180,6 +212,59 @@ async function researchMarketEvidenceInBatches(input: {
     }
   });
   return results.flat();
+}
+
+async function analyzeTopSupplyDemand(input: {
+  demands: Demand[];
+  scores: Score[];
+  sources: Source[];
+  evidence: MarketEvidence[];
+  llm?: SupplyDemandAnalysisLlm;
+  generatedAt: string;
+  outputLocale?: ReportLocale;
+  limit: number;
+  fixtureMode?: boolean;
+  onFallback?: (error: unknown) => void;
+}): Promise<SupplyDemandAnalysis[]> {
+  const topDemandIds = new Set(input.scores.slice(0, input.limit).map((score) => score.demand_id));
+  const topDemands = input.demands.filter((demand) => topDemandIds.has(demand.id));
+  if (topDemands.length === 0) return [];
+  if (input.llm && !input.fixtureMode) {
+    try {
+      return await analyzeSupplyDemand({
+        demands: topDemands,
+        sources: input.sources,
+        evidence: input.evidence.filter((item) => topDemandIds.has(item.demand_id)),
+        llm: input.llm,
+        generatedAt: input.generatedAt,
+        outputLocale: input.outputLocale
+      });
+    } catch (error) {
+      input.onFallback?.(error);
+    }
+  }
+  return topDemands.map((demand) => fallbackSupplyDemandAnalysis({
+    demand,
+    evidence: input.evidence.filter((item) => item.demand_id === demand.id),
+    generatedAt: input.generatedAt,
+    locale: input.outputLocale
+  }));
+}
+
+function completeSupplyAnalysisCoverage(input: {
+  demands: Demand[];
+  analyses: SupplyDemandAnalysis[];
+  evidence: MarketEvidence[];
+  generatedAt: string;
+  outputLocale?: ReportLocale;
+}): SupplyDemandAnalysis[] {
+  const analysisByDemandId = new Map(input.analyses.map((analysis) => [analysis.demand_id, analysis]));
+  return input.demands.map((demand) => analysisByDemandId.get(demand.id) ?? fallbackSupplyDemandAnalysis({
+    demand,
+    evidence: input.evidence.filter((item) => item.demand_id === demand.id),
+    generatedAt: input.generatedAt,
+    locale: input.outputLocale
+  }));
 }
 
 async function runWithConcurrency<T, R>(
@@ -280,6 +365,7 @@ async function writeReports(input: {
   demands: Demand[];
   sources: Source[];
   market_evidence: MarketEvidence[];
+  supply_analyses: SupplyDemandAnalysis[];
   scores: Score[];
   generatedAt: string;
   cadences: ReportCadence[];
@@ -301,7 +387,14 @@ async function writeReports(input: {
       const demand = input.demands.find((item) => item.id === score.demand_id);
       if (!demand) continue;
       const evidence = input.market_evidence.filter((item) => item.demand_id === demand.id);
-      const rendered = generateMiniBrief({ date: input.date, demand, evidence, score, locale });
+      const rendered = generateMiniBrief({
+        date: input.date,
+        demand,
+        evidence,
+        score,
+        supplyAnalysis: input.supply_analyses.find((analysis) => analysis.demand_id === demand.id),
+        locale
+      });
       const localizedRendered = await translateRenderedReportIfNeeded({
         rendered,
         locale,
@@ -341,6 +434,7 @@ async function writeReports(input: {
           demands: input.demands,
           sources: input.sources,
           evidence: input.market_evidence,
+          supplyAnalyses: input.supply_analyses,
           briefPaths,
           locale
         });

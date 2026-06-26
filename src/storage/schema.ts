@@ -84,6 +84,17 @@ export const scores = sqliteTable('scores', {
   index('idx_scores_run_total').on(table.run_id, table.total_score)
 ]);
 
+export const supplyAnalyses = sqliteTable('supply_analyses', {
+  id: text('id').primaryKey(),
+  run_id: text('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
+  demand_id: text('demand_id').notNull().references(() => demands.id, { onDelete: 'cascade' }),
+  analysis: text('analysis').notNull(),
+  generated_at: text('generated_at').notNull()
+}, (table) => [
+  index('idx_supply_analyses_run_id').on(table.run_id),
+  index('idx_supply_analyses_demand_id').on(table.demand_id)
+]);
+
 export const reports = sqliteTable('reports', {
   id: text('id').primaryKey(),
   run_id: text('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
@@ -179,6 +190,14 @@ CREATE TABLE IF NOT EXISTS scores (
   generated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS supply_analyses (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+  demand_id TEXT NOT NULL REFERENCES demands(id) ON DELETE CASCADE,
+  analysis TEXT NOT NULL,
+  generated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -200,6 +219,8 @@ CREATE INDEX IF NOT EXISTS idx_hotspots_run_id ON hotspots(run_id);
 CREATE INDEX IF NOT EXISTS idx_demands_run_id ON demands(run_id);
 CREATE INDEX IF NOT EXISTS idx_market_evidence_demand_id ON market_evidence(demand_id);
 CREATE INDEX IF NOT EXISTS idx_scores_run_total ON scores(run_id, total_score DESC);
+CREATE INDEX IF NOT EXISTS idx_supply_analyses_run_id ON supply_analyses(run_id);
+CREATE INDEX IF NOT EXISTS idx_supply_analyses_demand_id ON supply_analyses(demand_id);
 CREATE INDEX IF NOT EXISTS idx_reports_run_id ON reports(run_id);
 CREATE INDEX IF NOT EXISTS idx_reports_cadence_locale_period ON reports(cadence, locale, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_reports_canonical_report_id ON reports(canonical_report_id);

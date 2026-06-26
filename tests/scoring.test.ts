@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeCreatorFit } from '../src/scoring/creatorFit.js';
 import { rankDemandScores, scoreOpportunity } from '../src/scoring/scoreOpportunity.js';
-import type { Demand, MarketEvidence, Score, Source } from '../src/pipeline/types.js';
+import type { Demand, MarketEvidence, Score, Source, SupplyDemandAnalysis } from '../src/pipeline/types.js';
 
 const now = '2026-06-18T00:00:00.000Z';
 
@@ -43,6 +43,23 @@ describe('scoring', () => {
 
     expect(fit.mode).toBe('direct');
     expect(score.dimension_scores.feasibility).toBeGreaterThanOrEqual(80);
+  });
+
+  it('uses structured supply-demand assessment for scoring dimensions without letting the LLM set total score', () => {
+    const score = scoreOpportunity(
+      demand('demand-1', 0.3),
+      evidence('demand-1'),
+      undefined,
+      now,
+      [],
+      'en',
+      supplyAnalysis('demand-1')
+    );
+
+    expect(score.dimension_scores.demand_strength).toBe(90);
+    expect(score.dimension_scores.willingness_to_pay).toBe(85);
+    expect(score.explanation).toContain('The creator can own the document workflow');
+    expect(score.total_score).toBeGreaterThan(50);
   });
 
   it('routes licensed offline fulfillment toward third-party supply', () => {
@@ -102,5 +119,44 @@ function source(url: string, freshness_status: string): Source {
     search_query: 'rednote',
     time_window: '30d',
     raw: { freshness_status }
+  };
+}
+
+function supplyAnalysis(demand_id: string): SupplyDemandAnalysis {
+  return {
+    id: `supply-analysis-${demand_id}`,
+    run_id: 'run-1',
+    demand_id,
+    creator_capability_fit: {
+      status: 'orchestrate',
+      specific_reason: 'The creator can own the document workflow but needs policy templates.',
+      missing_capability: ['Policy template library']
+    },
+    existing_supply_fit: {
+      status: 'partial',
+      matched_supply: 'DeepSeek and document writing tools',
+      unresolved_gap: 'They do not combine PDF upload, retrieval, and simple public-document drafting.'
+    },
+    ai_agent_fill: {
+      feasibility: 'high',
+      can_do: ['PDF extraction', 'retrieval', 'drafting'],
+      cannot_do: ['Guarantee policy correctness'],
+      required_inputs: ['PDF files', 'writing template']
+    },
+    third_party_supply_path: {
+      needed: true,
+      provider_type: 'policy template provider',
+      why: 'Domain-specific formats need external validation.',
+      handoff_boundary: 'After the agent prepares a draft.'
+    },
+    scoring_assessment: {
+      demand_strength: 'high',
+      supply_gap: 'clear',
+      agent_feasibility: 'high',
+      payment_signal: 'explicit',
+      evidence_quality: 'medium'
+    },
+    confidence: 0.8,
+    generated_at: now
   };
 }
