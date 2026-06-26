@@ -41,13 +41,24 @@ function fromStructuredAnalysis(analysis: StructuredSupplyDemandAnalysis, locale
     aiAgentFill: zh
       ? `${agentLabel(analysis.ai_agent_fill.feasibility, locale)}：可做 ${joinItems(analysis.ai_agent_fill.can_do, locale)}；不能做 ${joinItems(analysis.ai_agent_fill.cannot_do, locale)}；需要 ${joinItems(analysis.ai_agent_fill.required_inputs, locale)}`
       : `${agentLabel(analysis.ai_agent_fill.feasibility, locale)}: can do ${joinItems(analysis.ai_agent_fill.can_do, locale)}; cannot do ${joinItems(analysis.ai_agent_fill.cannot_do, locale)}; needs ${joinItems(analysis.ai_agent_fill.required_inputs, locale)}`,
-    transactionPath: zh
-      ? `先处理可由个人/AI 承接的部分，再在“${analysis.third_party_supply_path.handoff_boundary}”处转给${analysis.third_party_supply_path.provider_type}。`
-      : `Handle the creator/AI-owned steps first, then hand off at "${analysis.third_party_supply_path.handoff_boundary}" to ${analysis.third_party_supply_path.provider_type}.`,
+    transactionPath: transactionPathLabel(analysis, locale),
     thirdPartyPath: zh
-      ? `${analysis.third_party_supply_path.needed ? '需要' : '暂不需要'}：${analysis.third_party_supply_path.provider_type}；原因：${analysis.third_party_supply_path.why}；边界：${analysis.third_party_supply_path.handoff_boundary}`
-      : `${analysis.third_party_supply_path.needed ? 'Needed' : 'Not needed yet'}: ${analysis.third_party_supply_path.provider_type}; why: ${analysis.third_party_supply_path.why}; boundary: ${analysis.third_party_supply_path.handoff_boundary}`
+      ? `${analysis.third_party_supply_path.needed ? '需要撮合' : '暂不需要撮合'}：${analysis.third_party_supply_path.provider_type}；原因：${analysis.third_party_supply_path.why}；边界：${analysis.third_party_supply_path.handoff_boundary}`
+      : `${analysis.third_party_supply_path.needed ? 'Brokerage needed' : 'Brokerage not needed yet'}: ${analysis.third_party_supply_path.provider_type}; why: ${analysis.third_party_supply_path.why}; boundary: ${analysis.third_party_supply_path.handoff_boundary}`
   };
+}
+
+function transactionPathLabel(analysis: StructuredSupplyDemandAnalysis, locale: ReportLocale): string {
+  const creatorStatus = analysis.creator_capability_fit.status;
+  const agentFeasibility = analysis.ai_agent_fill.feasibility;
+  if (locale === 'zh-CN') {
+    if (creatorStatus === 'direct') return '优先自营交付，利润主要归个人；AI Agent 只作为效率工具。';
+    if (agentFeasibility !== 'low') return '优先采用个人 + AI Agent 增强自营交付，成本主要是工具/API 和人工复核。';
+    return `自营和 Agent 都不足时，转为外部供给撮合，在“${analysis.third_party_supply_path.handoff_boundary}”处交给${analysis.third_party_supply_path.provider_type}，主要赚取中介费或差价。`;
+  }
+  if (creatorStatus === 'direct') return 'Prefer creator-owned fulfillment; most profit stays with the creator and the AI Agent is only an efficiency layer.';
+  if (agentFeasibility !== 'low') return 'Prefer creator + AI Agent augmented fulfillment, with costs mainly from tools/APIs and human review.';
+  return `If creator-owned and Agent fulfillment are insufficient, switch to external supply brokerage, hand off at "${analysis.third_party_supply_path.handoff_boundary}" to ${analysis.third_party_supply_path.provider_type}, and earn brokerage margin.`;
 }
 
 function creatorStatusLabel(status: StructuredSupplyDemandAnalysis['creator_capability_fit']['status'], locale: ReportLocale): string {

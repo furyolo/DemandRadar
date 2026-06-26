@@ -39,14 +39,14 @@ ${input.demand.pain_point}
 - 保留有来源支撑的证据
 - 对机会质量排序
 
-## 供给侧匹配
+## 供给实现路径
 
-- 个人能力匹配：${supply.creatorFit}
-- 现有供给：${supply.existingSupply}
+- 个人自营匹配：${supply.creatorFit}
+- AI Agent 增强自营匹配：${supply.aiAgentFill}
+- 外部供给撮合匹配：${supply.existingSupply}
 - 供给缺口：${supply.supplyGap}
-- AI Agent 补足：${supply.aiAgentFill}
-- 交易路径：${supply.transactionPath}
-- 第三方供给路径：${supply.thirdPartyPath}
+- 推荐交易路径：${supply.transactionPath}
+- 撮合供给路径：${supply.thirdPartyPath}
 
 ## 市场证据
 
@@ -77,14 +77,14 @@ ${input.demand.pain_point}
 - Preserve source-backed evidence
 - Rank opportunity quality
 
-## Supply-Side Fit
+## Supply Fulfillment Path
 
-- Creator capability fit: ${supply.creatorFit}
-- Existing supply: ${supply.existingSupply}
+- Creator-owned fit: ${supply.creatorFit}
+- AI Agent augmented fit: ${supply.aiAgentFill}
+- External supply brokerage fit: ${supply.existingSupply}
 - Supply gap: ${supply.supplyGap}
-- AI Agent fill: ${supply.aiAgentFill}
-- Transaction path: ${supply.transactionPath}
-- Third-party supply path: ${supply.thirdPartyPath}
+- Recommended transaction path: ${supply.transactionPath}
+- Brokerage supply path: ${supply.thirdPartyPath}
 
 ## Market Evidence
 

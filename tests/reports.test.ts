@@ -31,7 +31,7 @@ describe('reports', () => {
     expect(brief.markdown).toContain('https://example.com/report');
     expect(daily.path).toBe('reports/2026-06-18.md');
     expect(daily.markdown).toContain('## Top 10 Demand-Supply Matchups');
-    expect(daily.markdown).toContain('| Rank | Demand | Score | Creator Capability Fit | Existing Supply Fit | AI Agent Fill | Third-Party Supply Path |');
+    expect(daily.markdown).toContain('| Rank | Demand | Score | Creator-Owned Fit | AI Agent Augmented Fit | External Supply Brokerage Fit | Brokerage Supply Path |');
     expect(daily.markdown).toContain('partial: manual');
     expect(daily.markdown).toContain('AI Agent');
     expect(daily.markdown).toContain('## Top 3 Mini Briefs');
@@ -39,10 +39,10 @@ describe('reports', () => {
     expect(daily.markdown).toContain('[rednote] Manual research story');
     expect(daily.markdown).toContain('published 2026-06-18');
     expect(daily.markdown).toContain('freshness fresh');
-    expect(brief.markdown).toContain('## Supply-Side Fit');
-    expect(brief.markdown).toContain('Creator capability fit:');
-    expect(brief.markdown).toContain('Existing supply: partial');
-    expect(brief.markdown).toContain('Third-party supply path:');
+    expect(brief.markdown).toContain('## Supply Fulfillment Path');
+    expect(brief.markdown).toContain('Creator-owned fit:');
+    expect(brief.markdown).toContain('External supply brokerage fit: partial');
+    expect(brief.markdown).toContain('Brokerage supply path:');
     expect(daily.markdown).not.toContain('Useful as leverage for lead capture, structured analysis, prototype generation, and delivery review');
   });
 
@@ -62,11 +62,11 @@ describe('reports', () => {
     });
 
     expect(brief.path).toBe('briefs/2026-06-18/automate-opportunity-research.zh-CN.md');
-    expect(brief.markdown).toContain('## 供给侧匹配');
-    expect(brief.markdown).toContain('现有供给：供给部分满足');
+    expect(brief.markdown).toContain('## 供给实现路径');
+    expect(brief.markdown).toContain('外部供给撮合匹配：供给部分满足');
     expect(daily.path).toBe('reports/2026-06-18.zh-CN.md');
     expect(daily.markdown).toContain('## 需求-供给匹配前十');
-    expect(daily.markdown).toContain('| 排名 | 需求 | 分数 | 个人能力匹配 | 现有供给匹配 | AI Agent 补足 | 第三方供给路径 |');
+    expect(daily.markdown).toContain('| 排名 | 需求 | 分数 | 个人自营匹配 | AI Agent 增强自营匹配 | 外部供给撮合匹配 | 撮合供给路径 |');
     expect(daily.markdown).not.toContain('## Report Focus');
     expect(daily.markdown).not.toContain('Existing Supply Fit');
     expect(daily.markdown).not.toContain('可作为放大器：用于线索采集、结构化分析、原型生成和交付复核');
@@ -99,7 +99,7 @@ describe('reports', () => {
 
     expect(brief.markdown).toContain('AI 可以汇总小红书和网页证据');
     expect(brief.markdown).toContain('不能替代真实用户访谈');
-    expect(brief.markdown).toContain('第三方供给路径：需要：访谈招募服务商');
+    expect(brief.markdown).toContain('撮合供给路径：需要撮合：访谈招募服务商');
     expect(daily.markdown).toContain('现有研究工具能收集资料，但不能判断用户是否真的愿意付费');
     expect(daily.markdown).not.toContain('可作为放大器：用于线索采集、结构化分析、原型生成和交付复核');
   });
