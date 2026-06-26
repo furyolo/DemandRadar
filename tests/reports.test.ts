@@ -31,7 +31,7 @@ describe('reports', () => {
     expect(brief.markdown).toContain('https://example.com/report');
     expect(daily.path).toBe('reports/2026-06-18.md');
     expect(daily.markdown).toContain('## Top 10 Demand-Supply Matchups');
-    expect(daily.markdown).toContain('| Rank | Demand | Score | Existing Supply Fit | AI Agent Fill | Transaction Path |');
+    expect(daily.markdown).toContain('| Rank | Demand | Score | Creator Capability Fit | Existing Supply Fit | AI Agent Fill | Third-Party Supply Path |');
     expect(daily.markdown).toContain('Visible but incomplete');
     expect(daily.markdown).toContain('AI Agent');
     expect(daily.markdown).toContain('## Top 3 Mini Briefs');
@@ -40,8 +40,9 @@ describe('reports', () => {
     expect(daily.markdown).toContain('published 2026-06-18');
     expect(daily.markdown).toContain('freshness fresh');
     expect(brief.markdown).toContain('## Supply-Side Fit');
+    expect(brief.markdown).toContain('Creator capability fit:');
     expect(brief.markdown).toContain('Existing supply: Visible but incomplete');
-    expect(brief.markdown).toContain('Transaction path:');
+    expect(brief.markdown).toContain('Third-party supply path:');
   });
 
   it('renders zh-CN report surfaces without English template labels', () => {
@@ -64,7 +65,7 @@ describe('reports', () => {
     expect(brief.markdown).toContain('现有供给：可见但不完整');
     expect(daily.path).toBe('reports/2026-06-18.zh-CN.md');
     expect(daily.markdown).toContain('## 需求-供给匹配前十');
-    expect(daily.markdown).toContain('| 排名 | 需求 | 分数 | 现有供给匹配 | AI Agent 补足 | 交易路径 |');
+    expect(daily.markdown).toContain('| 排名 | 需求 | 分数 | 个人能力匹配 | 现有供给匹配 | AI Agent 补足 | 第三方供给路径 |');
     expect(daily.markdown).not.toContain('## Report Focus');
     expect(daily.markdown).not.toContain('Existing Supply Fit');
   });

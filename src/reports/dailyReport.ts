@@ -25,8 +25,8 @@ export function generateDailyReport(input: DailyReportInput): DailyReport {
     const demand = demandById.get(score.demand_id);
     if (!demand) {
       return locale === 'zh-CN'
-        ? `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | 缺少需求记录 | 未知 | 无法匹配，因为缺少需求记录 |`
-        : `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | Demand record missing | Unknown | Cannot match without demand record |`;
+        ? `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | 缺少需求记录 | 未知 | 未知 | 无法匹配，因为缺少需求记录 |`
+        : `| ${index + 1} | ${score.demand_id} | ${score.total_score}/100 | Demand record missing | Unknown | Unknown | Cannot match without demand record |`;
     }
     const supply = analyzeSupplyFit({
       demand,
@@ -34,7 +34,7 @@ export function generateDailyReport(input: DailyReportInput): DailyReport {
       score,
       locale
     });
-    return `| ${index + 1} | ${escapeTableCell(demand.demand_statement)} | ${score.total_score}/100 | ${escapeTableCell(supply.existingSupply)} | ${escapeTableCell(supply.aiAgentFill)} | ${escapeTableCell(supply.transactionPath)} |`;
+    return `| ${index + 1} | ${escapeTableCell(demand.demand_statement)} | ${score.total_score}/100 | ${escapeTableCell(supply.creatorFit)} | ${escapeTableCell(supply.existingSupply)} | ${escapeTableCell(supply.aiAgentFill)} | ${escapeTableCell(supply.thirdPartyPath)} |`;
   }).join('\n');
   const sources = renderSources(input, locale);
   const markdown = locale === 'zh-CN'
@@ -42,12 +42,12 @@ export function generateDailyReport(input: DailyReportInput): DailyReport {
 
 ## 报告重点
 
-本报告呈现 10 条需求机会，并逐条说明现有供给是否能满足需求、仍缺什么供给、以及 AI Agent 能否补上缺口促成交易。
+本报告呈现 10 条需求机会，并逐条说明个人能力是否能直接满足、AI Agent 能否短期补足、以及何时需要第三方供给。
 
 ## 需求-供给匹配前十
 
-| 排名 | 需求 | 分数 | 现有供给匹配 | AI Agent 补足 | 交易路径 |
-| --- | --- | --- | --- | --- | --- |
+| 排名 | 需求 | 分数 | 个人能力匹配 | 现有供给匹配 | AI Agent 补足 | 第三方供给路径 |
+| --- | --- | --- | --- | --- | --- | --- |
 ${ranking}
 
 ## Top 3 精简 Brief
@@ -62,12 +62,12 @@ ${sources || '- 暂无来源链接'}
 
 ## Report Focus
 
-The report ranks ten demand opportunities and, for each one, states whether existing supply can satisfy the demand, what supply gap remains, and how an AI Agent could fill the gap to enable a transaction.
+The report ranks ten demand opportunities and states whether creator capability can satisfy the demand directly, whether an AI Agent can fill the short-term gap, and when third-party supply is needed.
 
 ## Top 10 Demand-Supply Matchups
 
-| Rank | Demand | Score | Existing Supply Fit | AI Agent Fill | Transaction Path |
-| --- | --- | --- | --- | --- | --- |
+| Rank | Demand | Score | Creator Capability Fit | Existing Supply Fit | AI Agent Fill | Third-Party Supply Path |
+| --- | --- | --- | --- | --- | --- | --- |
 ${ranking}
 
 ## Top 3 Mini Briefs

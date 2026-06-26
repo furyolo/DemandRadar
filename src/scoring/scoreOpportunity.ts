@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Demand, MarketEvidence, ReportLocale, Score, Source } from '../pipeline/types.js';
 import { ScoreSchema } from '../pipeline/types.js';
+import { analyzeCreatorFit } from './creatorFit.js';
 import { defaultScoringWeights, type ScoringWeights } from './weights.js';
 
 export function scoreOpportunity(
@@ -12,11 +13,13 @@ export function scoreOpportunity(
   locale: ReportLocale = 'en'
 ): Score {
   const freshness = sourceFreshness(demand, sources);
+  const creatorFit = analyzeCreatorFit({ demand, evidence, locale });
+  const baseFeasibility = 70 + Math.round(demand.confidence * 20);
   const dimension_scores = {
     demand_strength: clamp(Math.round(demand.confidence * 100)),
     market_size: clamp(scoreEvidence(evidence, ['tam', 'sam', 'som'])),
     willingness_to_pay: clamp(scoreEvidence(evidence, ['willingness_to_pay', 'competitor'])),
-    feasibility: clamp(70 + Math.round(demand.confidence * 20))
+    feasibility: clamp(baseFeasibility * 0.45 + creatorFit.score * 0.55)
   };
   const base_score = clamp(
     dimension_scores.demand_strength * weights.demand_strength +
@@ -28,7 +31,7 @@ export function scoreOpportunity(
   const confidence = evidence.length > 0
     ? (demand.confidence + evidence.reduce((sum, item) => sum + item.confidence, 0) / evidence.length) / 2
     : demand.confidence * 0.7;
-  const explanation = formatScoreExplanation(dimension_scores, freshness, locale);
+  const explanation = formatScoreExplanation(dimension_scores, freshness, creatorFit, locale);
 
   return ScoreSchema.parse({
     id: `score-${randomUUID()}`,
@@ -70,14 +73,16 @@ function sourceFreshness(demand: Demand, sources: Source[]): { penalty: number; 
 function formatScoreExplanation(
   dimensionScores: Score['dimension_scores'],
   freshness: { penalty: number; reason: string },
+  creatorFit: ReturnType<typeof analyzeCreatorFit>,
   locale: ReportLocale
 ): string {
   if (locale === 'zh-CN') {
-    const base = `需求强度 ${dimensionScores.demand_strength}，市场规模 ${dimensionScores.market_size}，支付意愿 ${dimensionScores.willingness_to_pay}，可行性 ${dimensionScores.feasibility}。`;
+    const base = `需求强度 ${dimensionScores.demand_strength}，市场规模 ${dimensionScores.market_size}，支付意愿 ${dimensionScores.willingness_to_pay}，可行性 ${dimensionScores.feasibility}。个人能力匹配：${creatorFit.personalFit}`;
     return freshness.penalty > 0 ? `${base} 时效惩罚 ${freshness.penalty}：${translateFreshnessReason(freshness.reason)}。` : base;
   }
   return [
     `Demand strength ${dimensionScores.demand_strength}, market size ${dimensionScores.market_size}, willingness to pay ${dimensionScores.willingness_to_pay}, feasibility ${dimensionScores.feasibility}.`,
+    `Creator capability fit: ${creatorFit.personalFit}`,
     freshness.penalty > 0 ? `Freshness penalty ${freshness.penalty}: ${freshness.reason}.` : null
   ].filter(Boolean).join(' ');
 }

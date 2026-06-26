@@ -40,10 +40,12 @@ ${input.demand.pain_point}
 
 ## 供给侧匹配
 
+- 个人能力匹配：${supply.creatorFit}
 - 现有供给：${supply.existingSupply}
 - 供给缺口：${supply.supplyGap}
 - AI Agent 补足：${supply.aiAgentFill}
 - 交易路径：${supply.transactionPath}
+- 第三方供给路径：${supply.thirdPartyPath}
 
 ## 市场证据
 
@@ -76,10 +78,12 @@ ${input.demand.pain_point}
 
 ## Supply-Side Fit
 
+- Creator capability fit: ${supply.creatorFit}
 - Existing supply: ${supply.existingSupply}
 - Supply gap: ${supply.supplyGap}
 - AI Agent fill: ${supply.aiAgentFill}
 - Transaction path: ${supply.transactionPath}
+- Third-party supply path: ${supply.thirdPartyPath}
 
 ## Market Evidence
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { analyzeCreatorFit } from '../src/scoring/creatorFit.js';
 import { rankDemandScores, scoreOpportunity } from '../src/scoring/scoreOpportunity.js';
 import type { Demand, MarketEvidence, Score, Source } from '../src/pipeline/types.js';
 
@@ -9,6 +10,7 @@ describe('scoring', () => {
     const score = scoreOpportunity(demand('demand-1', 0.8), evidence('demand-1'), undefined, now);
     const lower: Score = { ...score, id: 'score-low', demand_id: 'demand-2', total_score: 10 };
     expect(score.dimension_scores.demand_strength).toBe(80);
+    expect(score.explanation).toContain('Creator capability fit');
     expect(rankDemandScores([lower, score])[0]?.id).toBe(score.id);
   });
 
@@ -22,6 +24,39 @@ describe('scoring', () => {
 
     expect(expired.total_score).toBeLessThan(fresh.total_score);
     expect(expired.explanation).toContain('Freshness penalty 35');
+  });
+
+  it('raises feasibility when demand matches creator capability and AI-agentable delivery', () => {
+    const fit = analyzeCreatorFit({
+      demand: {
+        ...demand('demand-1', 0.8),
+        pain_point: 'Manual data research and workflow comparison are slow',
+        demand_statement: 'Build an AI Agent workflow that automates opportunity research and reports'
+      },
+      evidence: evidence('demand-1')
+    });
+    const score = scoreOpportunity({
+      ...demand('demand-1', 0.8),
+      pain_point: 'Manual data research and workflow comparison are slow',
+      demand_statement: 'Build an AI Agent workflow that automates opportunity research and reports'
+    }, evidence('demand-1'), undefined, now);
+
+    expect(fit.mode).toBe('direct');
+    expect(score.dimension_scores.feasibility).toBeGreaterThanOrEqual(80);
+  });
+
+  it('routes licensed offline fulfillment toward third-party supply', () => {
+    const fit = analyzeCreatorFit({
+      demand: {
+        ...demand('demand-1', 0.8),
+        pain_point: 'Patients need licensed doctor onsite medical treatment',
+        demand_statement: 'Match users with regulated medical and onsite delivery providers'
+      },
+      evidence: []
+    });
+
+    expect(fit.mode).toBe('third_party');
+    expect(fit.thirdPartyPath).toContain('licensed');
   });
 });
 

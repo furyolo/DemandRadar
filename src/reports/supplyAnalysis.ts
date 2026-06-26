@@ -1,11 +1,14 @@
 import type { Demand, MarketEvidence, Score } from '../pipeline/types.js';
 import type { ReportLocale } from '../pipeline/types.js';
+import { analyzeCreatorFit } from '../scoring/creatorFit.js';
 
 export interface SupplyAnalysis {
+  creatorFit: string;
   existingSupply: string;
   supplyGap: string;
   aiAgentFill: string;
   transactionPath: string;
+  thirdPartyPath: string;
 }
 
 export function analyzeSupplyFit(input: {
@@ -15,6 +18,7 @@ export function analyzeSupplyFit(input: {
   locale?: ReportLocale;
 }): SupplyAnalysis {
   const locale = input.locale ?? 'en';
+  const creator = analyzeCreatorFit({ demand: input.demand, evidence: input.evidence, locale });
   const competitorEvidence = input.evidence.filter((item) => item.evidence_type === 'competitor');
   const visibleAlternatives = input.demand.current_alternatives.filter((item) => item.trim().length > 0);
   const visibleSupply = [
@@ -36,46 +40,40 @@ export function analyzeSupplyFit(input: {
     : locale === 'zh-CN'
       ? `供给发现缺口：本次没有抓到可直接满足该痛点的现有服务、提供方或 workaround：${input.demand.pain_point}`
       : `Supply discovery gap - no current provider or workaround was captured for: ${input.demand.pain_point}`;
-  const aiAgentFill = aiAgentPotential(input.score.dimension_scores.feasibility, visibleSupply.length > 0, locale);
-  const transactionPath = visibleSupply.length > 0
+  const aiAgentFill = creator.aiAgentFit;
+  const transactionPath = transactionRoute(creator.mode, visibleSupply.length > 0, locale);
+  const thirdPartyPath = creator.thirdPartyPath;
+
+  return {
+    creatorFit: creator.personalFit,
+    existingSupply,
+    supplyGap,
+    aiAgentFill,
+    transactionPath,
+    thirdPartyPath
+  };
+}
+
+function transactionRoute(
+  mode: ReturnType<typeof analyzeCreatorFit>['mode'],
+  hasVisibleSupply: boolean,
+  locale: ReportLocale
+): string {
+  if (mode === 'direct') {
+    return locale === 'zh-CN'
+      ? '先由个人能力直接做 MVP 或服务化验证，再决定是否引入现有供给扩容。'
+      : 'Start with creator-led MVP or service delivery, then add existing supply only for scale.';
+  }
+  if (mode === 'ai_agent_augmented') {
+    return locale === 'zh-CN'
+      ? '先用个人判断和 AI Agent 作为临时供给完成接单、执行和交付验证。'
+      : 'Use creator judgment plus an AI Agent as provisional supply for intake, execution, and delivery validation.';
+  }
+  return hasVisibleSupply
     ? locale === 'zh-CN'
       ? '先把需求路由给现有供给，再用 AI Agent 做需求确认、匹配比较和未闭环步骤补足。'
       : 'Route demand to existing supply first, then use an AI Agent to qualify intent, compare fit, and fill unresolved workflow steps.'
     : locale === 'zh-CN'
-      ? '先把 AI Agent 作为临时供给用于接单、流程执行和交付，直到验证出可重复的人力或软件供给。'
-      : 'Use an AI Agent as provisional supply for intake, workflow execution, and handoff until repeatable human or software supply is validated.';
-
-  return {
-    existingSupply,
-    supplyGap,
-    aiAgentFill,
-    transactionPath
-  };
-}
-
-function aiAgentPotential(feasibility: number, hasVisibleSupply: boolean, locale: ReportLocale): string {
-  if (feasibility >= 85) {
-    if (locale === 'zh-CN') {
-      return hasVisibleSupply
-        ? '高：围绕现有供给自动完成需求确认、匹配、协调和最后一公里执行。'
-        : '高：用 AI Agent 覆盖接单、分析、执行和交付，同时验证可重复供给。';
-    }
-    return hasVisibleSupply
-      ? 'High - automate qualification, matching, coordination, and last-mile execution around existing supply.'
-      : 'High - build an AI Agent to cover intake, analysis, execution, and delivery while supply is validated.';
-  }
-  if (feasibility >= 70) {
-    if (locale === 'zh-CN') {
-      return hasVisibleSupply
-        ? '中：AI Agent 可做需求确认和流程辅助，履约质量仍需要人工复核。'
-        : '中：AI Agent 可覆盖结构化流程，但履约假设需要人工验证。';
-    }
-    return hasVisibleSupply
-      ? 'Medium - use an AI Agent for qualification and workflow assistance, with manual review for fulfillment quality.'
-      : 'Medium - AI Agent can cover structured workflow steps, but fulfillment assumptions need manual validation.';
-  }
-  if (locale === 'zh-CN') {
-    return '低：可能依赖非 AI 供给、监管履约或更深的运营验证，暂不适合直接撮合。';
-  }
-  return 'Low - demand may require non-AI supply, regulated fulfillment, or deeper operational validation before matching.';
+      ? '先寻找第三方供给，AI Agent 只负责获客、分诊、资料准备和转介。'
+      : 'Find third-party supply first; use the AI Agent only for acquisition, triage, preparation, and referral.';
 }
