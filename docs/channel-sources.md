@@ -33,6 +33,10 @@
 
 首选接入 `fancyboi999/goofish-cli` 的只读命令输出。DemandRadar 通过 `npm run goofish:import` 调用外部 CLI，生成 `{ "items": [...] }` JSON，再交给 `--goofish-json` 进入主流程。
 
+在渠道内搜索时，关键词只描述主题、意图或品类，不重复包含渠道名称。例如 Goofish 渠道内使用 `求购 家教`，不要使用 `闲鱼 求购 家教`；RedNote 渠道内同理不需要把 `小红书` / `RedNote` 放进查询词。
+
+Goofish 当前通过页面渲染和固定次数滚动采集，`goofish-cli` 单关键词 `--limit` 上限为 50。实际挖掘应采用多关键词分桶采集，而不是单关键词无限下滚：每个关键词限量抓取，再按 `item_id` / `url` 合并去重生成统一 `items.json`。
+
 当前只允许以下只读能力进入自动化采集链路：
 
 - `search items`：按关键词搜索闲鱼商品或服务线索。
@@ -40,17 +44,17 @@
 
 暂不把发布、删除、发送消息、批量询价等写操作接入 DemandRadar 主流程。若未来需要验证供给响应，应单独设计人工确认边界和频率限制。
 
-推荐运行方式：
+推荐运行方式（临时挖掘结果沿用 RedNote 流程，集中放在 `.tmp/<channel>-<date>[-topic]/` 下）：
 
 ```bash
-npm run goofish:import -- --query "闲鱼 求购 家教" --limit 20 --output data/goofish-items.json
-npm run demandradar:run -- --goofish-json data/goofish-items.json --goofish-query "闲鱼 求购 家教" --skip-smart-search --locale zh-CN
+npm run goofish:import -- --query "求购 家教" --limit 20 --output .tmp/goofish-2026-06-26/items.json
+npm run demandradar:run -- --goofish-json .tmp/goofish-2026-06-26/items.json --goofish-query "求购 家教" --skip-smart-search --locale zh-CN --db .tmp/goofish-2026-06-26/demandradar.sqlite --reports-dir .tmp/goofish-2026-06-26/reports --briefs-dir .tmp/goofish-2026-06-26/briefs
 ```
 
 如果本机不安装 `goofish` 命令，而是使用 `uvx goofish-cli`：
 
 ```bash
-npm run goofish:import -- --command uvx --command-arg goofish-cli --query "闲鱼 求购 家教" --output data/goofish-items.json
+npm run goofish:import -- --command uvx --command-arg goofish-cli --query "求购 家教" --output data/goofish-items.json
 ```
 
 ## 闲鱼本机安装与登录记录
@@ -153,14 +157,14 @@ goofish auth status --format json
 
 ```powershell
 goofish auth status --format json
-goofish search items "闲鱼 求购 家教" --limit 5 --format json
+goofish search items "求购 家教" --limit 5 --format json
 ```
 
 只要 `auth status` 有效，或 `search items` 能返回结构化 JSON，就可以运行 DemandRadar 导入：
 
 ```powershell
-npm run goofish:import -- --query "闲鱼 求购 家教" --limit 20 --output data/goofish-items.json
-npm run demandradar:run -- --goofish-json data/goofish-items.json --goofish-query "闲鱼 求购 家教" --skip-smart-search --locale zh-CN
+npm run goofish:import -- --query "求购 家教" --limit 20 --output .tmp/goofish-2026-06-26/items.json
+npm run demandradar:run -- --goofish-json .tmp/goofish-2026-06-26/items.json --goofish-query "求购 家教" --skip-smart-search --locale zh-CN --db .tmp/goofish-2026-06-26/demandradar.sqlite --reports-dir .tmp/goofish-2026-06-26/reports --briefs-dir .tmp/goofish-2026-06-26/briefs
 ```
 
 ### 常见错误速查

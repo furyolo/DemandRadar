@@ -100,8 +100,11 @@ pids/
 *.sqlite-*
 
 # Maestro / workflow generated state
+.mindfs/
 .workflow/spec-analytics.jsonl
 .workflow/wiki-index.json
+.workflow/search-cache.json
+.workflow/search-daemon.json
 .workflow/specs/.hit-log.jsonl
 .workflow/scratch/
 .workflow/.roadmap/

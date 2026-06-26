@@ -59,7 +59,7 @@ npm run demandradar -- report 2026-06-18
 DemandRadar can ingest RedNote/Xiaohongshu notes exported by an external skill, MCP server, or API without binding the core pipeline to a specific provider:
 
 ```bash
-npm run demandradar:run -- --rednote-json data/rednote-notes.json --rednote-query "RedNote AI tools" --skip-smart-search
+npm run demandradar:run -- --rednote-json data/rednote-notes.json --rednote-query "AI tools" --skip-smart-search
 ```
 
 Supported JSON shapes:
@@ -84,14 +84,14 @@ or `{ "notes": [...] }` / `{ "results": [...] }`. Imported records are mapped in
 Goofish/Xianyu listings use the same channel import path:
 
 ```bash
-npm run goofish:import -- --query "闲鱼 求购 家教" --limit 20 --output data/goofish-items.json
-npm run demandradar:run -- --goofish-json data/goofish-items.json --goofish-query "闲鱼 求购 家教" --skip-smart-search --locale zh-CN
+npm run goofish:import -- --query "求购 家教" --limit 20 --output .tmp/goofish-2026-06-26/items.json
+npm run demandradar:run -- --goofish-json .tmp/goofish-2026-06-26/items.json --goofish-query "求购 家教" --skip-smart-search --locale zh-CN --db .tmp/goofish-2026-06-26/demandradar.sqlite --reports-dir .tmp/goofish-2026-06-26/reports --briefs-dir .tmp/goofish-2026-06-26/briefs
 ```
 
 The import script shells out to the external read-only Goofish CLI search command and writes JSON for DemandRadar. By default it runs `goofish search items <query> --limit <n> --format json`. If you use `uvx goofish-cli`, run:
 
 ```bash
-npm run goofish:import -- --command uvx --command-arg goofish-cli --query "闲鱼 求购 家教" --output data/goofish-items.json
+npm run goofish:import -- --command uvx --command-arg goofish-cli --query "求购 家教" --output .tmp/goofish-2026-06-26/items.json
 ```
 
 Supported JSON shapes are arrays or `{ "items": [...] }` / `{ "listings": [...] }` / `{ "results": [...] }`, with optional `metadata`. Goofish records should include `url` or `item_id`, `title`, and optional `description`, `seller`, `price`, `location` / `city`, `want_count`, `view_count`, `favorite_count`, `tags`, and `intent`.
