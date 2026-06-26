@@ -8,7 +8,8 @@ export const DomainSchema = z.enum([
   'global_expansion',
   'ai_applications',
   'social_media',
-  'rednote'
+  'rednote',
+  'goofish'
 ]);
 
 export const RunSchema = z.object({

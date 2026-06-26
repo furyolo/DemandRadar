@@ -75,6 +75,21 @@ describe('scoring', () => {
     expect(fit.mode).toBe('third_party');
     expect(fit.thirdPartyPath).toContain('licensed');
   });
+
+  it('uses graduate education background as a research signal without overclaiming offline tutoring fulfillment', () => {
+    const fit = analyzeCreatorFit({
+      demand: {
+        ...demand('demand-1', 0.8),
+        user_profile: '同城家长',
+        pain_point: '家长需要筛选靠谱大学生家教并确认履约质量',
+        demand_statement: '搭建一个同城家教需求收集、资料筛选和匹配流程'
+      },
+      evidence: []
+    });
+
+    expect(fit.matchedCapabilities).toContain('硕士研究生背景、985/211 教育经历和学术信息理解');
+    expect(fit.mode).not.toBe('direct');
+  });
 });
 
 function demand(id: string, confidence: number): Demand {

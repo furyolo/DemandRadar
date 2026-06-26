@@ -9,6 +9,7 @@ import { dedupeHotspots } from '../cleaning/dedupe.js';
 import { normalizeSource } from '../cleaning/normalize.js';
 import { rankHotspots } from '../cleaning/rankHotspots.js';
 import type { SmartSearchClient } from '../integrations/smartSearchClient.js';
+import { collectGoofishHotspots } from '../ingest/goofishCollector.js';
 import { collectHotspots } from '../ingest/hotspotCollector.js';
 import { collectRedNoteHotspots } from '../ingest/rednoteCollector.js';
 import type { Demand, Hotspot, MarketEvidence, PipelineResult, ReportArtifact, ReportCadence, ReportLocale, Score, Source, SupplyDemandAnalysis } from './types.js';
@@ -50,6 +51,8 @@ export interface RunPipelineOptions {
   };
   redNoteRecords?: unknown;
   redNoteSearchQuery?: string;
+  goofishRecords?: unknown;
+  goofishSearchQuery?: string;
 }
 
 export async function runPipeline(options: RunPipelineOptions): Promise<PipelineResult> {
@@ -350,8 +353,21 @@ async function collect(options: RunPipelineOptions, runId: string, limit: number
     collected.hotspots.push(...rednote.hotspots);
   }
 
-  if (!options.smartSearchClient && !options.redNoteRecords) {
-    throw new Error('runPipeline requires smartSearchClient or redNoteRecords unless fixtureData is provided');
+  if (options.goofishRecords) {
+    const goofish = collectGoofishHotspots({
+      runId,
+      records: options.goofishRecords,
+      searchQuery: options.goofishSearchQuery ?? 'Goofish imported records',
+      timeWindowDays: 30,
+      generatedAt,
+      limit
+    });
+    collected.sources.push(...goofish.sources);
+    collected.hotspots.push(...goofish.hotspots);
+  }
+
+  if (!options.smartSearchClient && !options.redNoteRecords && !options.goofishRecords) {
+    throw new Error('runPipeline requires smartSearchClient, redNoteRecords, or goofishRecords unless fixtureData is provided');
   }
 
   return collected;

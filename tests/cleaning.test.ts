@@ -48,6 +48,11 @@ describe('cleaning utilities', () => {
     expect(classifyHotspot(hotspot('h1', 'https://example.com/a', 50, 'RedNote creator pain point'))).toBe('rednote');
     expect(classifyHotspot(hotspot('h2', 'https://example.com/b', 50, 'Xiaohongshu user complaint'))).toBe('rednote');
   });
+
+  it('classifies Goofish hotspots by English and Chinese names', () => {
+    expect(classifyHotspot(hotspot('h1', 'https://example.com/a', 50, 'Goofish buyer request'))).toBe('goofish');
+    expect(classifyHotspot(hotspot('h2', 'https://example.com/b', 50, '闲鱼求购同城服务'))).toBe('goofish');
+  });
 });
 
 function hotspot(id: string, canonical_url: string, heat_score: number, title = 'Startup signal'): Hotspot {

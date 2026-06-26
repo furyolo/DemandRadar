@@ -58,6 +58,14 @@ const capabilityRules: CapabilityRule[] = [
       '研究', '简报', '报告', '原型', '知识库', '调研', '方案'
     ],
     weight: 14
+  },
+  {
+    label: '硕士研究生背景、985/211 教育经历和学术信息理解',
+    keywords: [
+      'graduate', 'master', 'researcher', 'academic', 'university', 'education', 'tutoring',
+      '硕士', '研究生', '985', '211', '高校', '大学', '学历', '学术', '论文', '课程', '家教', '辅导'
+    ],
+    weight: 10
   }
 ];
 
@@ -65,7 +73,7 @@ const thirdPartySignals = [
   'license', 'licensed', 'regulatory', 'medical', 'doctor', 'legal', 'lawyer', 'accounting',
   'physical', 'onsite', 'warehouse', 'manufacturing', 'logistics', 'delivery', 'hardware',
   '资质', '牌照', '监管', '医疗', '医生', '法律', '律师', '会计', '线下', '上门',
-  '仓储', '制造', '物流', '配送', '硬件', '施工'
+  '仓储', '制造', '物流', '配送', '硬件', '施工', '同城家教', '上门家教', '线下辅导', '上门辅导'
 ];
 
 const aiAgentSignals = [

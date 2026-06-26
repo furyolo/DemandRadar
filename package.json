@@ -19,6 +19,7 @@
     "patch:rednote-mcp": "node scripts/patch-rednote-mind-mcp.mjs",
     "demandradar": "tsx src/cli.ts",
     "demandradar:run": "tsx src/cli.ts run",
+    "goofish:import": "tsx scripts/import-goofish-cli.ts",
     "market:ab": "tsx scripts/market-evidence-ab.ts"
   },
   "dependencies": {

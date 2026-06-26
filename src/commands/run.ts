@@ -22,6 +22,8 @@ export function registerRunCommand(program: Command): void {
     .option('--supply-analysis-limit <number>', 'Top scored demands to analyze with supply-demand fit LLM', '10')
     .option('--rednote-json <path>', 'Import RedNote/Xiaohongshu notes from a JSON file')
     .option('--rednote-query <query>', 'Search query label for imported RedNote records', 'RedNote imported records')
+    .option('--goofish-json <path>', 'Import Goofish/Xianyu listings from a JSON file')
+    .option('--goofish-query <query>', 'Search query label for imported Goofish records', 'Goofish imported records')
     .option('--skip-smart-search', 'Skip default Smart Search collection')
     .option('--cadence <cadence...>', 'Report cadence(s): daily weekly monthly')
     .option('--locale <locale...>', 'Report locale(s): en zh-CN')
@@ -33,6 +35,7 @@ export function registerRunCommand(program: Command): void {
           ? new LlmClient({ model: options.supplyAnalysisModel })
           : llmClient;
       const redNoteRecords = options.rednoteJson ? JSON.parse(await readFile(options.rednoteJson, 'utf8')) : undefined;
+      const goofishRecords = options.goofishJson ? JSON.parse(await readFile(options.goofishJson, 'utf8')) : undefined;
       await runPipeline({
         date: options.date ?? todayUtcDate(),
         limit: Number(options.limit),
@@ -48,6 +51,8 @@ export function registerRunCommand(program: Command): void {
         fixtureData: options.fixture ? fixtureData : undefined,
         redNoteRecords,
         redNoteSearchQuery: options.rednoteQuery,
+        goofishRecords,
+        goofishSearchQuery: options.goofishQuery,
         smartSearchClient: options.fixture || options.skipSmartSearch ? undefined : new SmartSearchClient(),
         llmClient,
         supplyAnalysisLlmClient,

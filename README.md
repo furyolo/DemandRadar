@@ -54,7 +54,7 @@ npm run demandradar -- show <demand-id>
 npm run demandradar -- report 2026-06-18
 ```
 
-## RedNote Import
+## Channel Imports
 
 DemandRadar can ingest RedNote/Xiaohongshu notes exported by an external skill, MCP server, or API without binding the core pipeline to a specific provider:
 
@@ -80,6 +80,32 @@ Supported JSON shapes:
 ```
 
 or `{ "notes": [...] }` / `{ "results": [...] }`. Imported records are mapped into `rednote` sources and hotspots before the existing demand extraction pipeline runs.
+
+Goofish/Xianyu listings use the same channel import path:
+
+```bash
+npm run goofish:import -- --query "闲鱼 求购 家教" --limit 20 --output data/goofish-items.json
+npm run demandradar:run -- --goofish-json data/goofish-items.json --goofish-query "闲鱼 求购 家教" --skip-smart-search --locale zh-CN
+```
+
+The import script shells out to the external read-only Goofish CLI search command and writes JSON for DemandRadar. By default it runs `goofish search items <query> --limit <n> --format json`. If you use `uvx goofish-cli`, run:
+
+```bash
+npm run goofish:import -- --command uvx --command-arg goofish-cli --query "闲鱼 求购 家教" --output data/goofish-items.json
+```
+
+Supported JSON shapes are arrays or `{ "items": [...] }` / `{ "listings": [...] }` / `{ "results": [...] }`, with optional `metadata`. Goofish records should include `url` or `item_id`, `title`, and optional `description`, `seller`, `price`, `location` / `city`, `want_count`, `view_count`, `favorite_count`, `tags`, and `intent`.
+
+For local `goofish-cli` setup, prefer `uv tool install goofish-cli`, install Playwright Chrome when prompted, and use QR login:
+
+```bash
+goofish auth login --qr --qr-timeout 180 --format json
+goofish auth status --format json
+```
+
+See `docs/channel-sources.md` for the full Goofish installation, browser, and login troubleshooting notes.
+
+Before adding a new channel collector, first search for existing skills, CLI tools, MCP servers, and GitHub projects that already cover that platform. Prefer adapting their exported JSON or MCP/CLI output into DemandRadar's channel import format before writing a new crawler.
 
 ## Live Smoke
 

@@ -1,8 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Hotspot, Source } from '../pipeline/types.js';
-import { HotspotSchema, SourceSchema } from '../pipeline/types.js';
 import { buildRedNoteTimeMetadata } from '../time/rednoteTime.js';
+import { mapSignalsToHotspots } from './channelCollector.js';
 
 const RedNoteRecordSchema = z.object({
   platform: z.literal('rednote').optional(),
@@ -42,59 +41,42 @@ export interface CollectRedNoteOptions {
 export function collectRedNoteHotspots(options: CollectRedNoteOptions): { sources: Source[]; hotspots: Hotspot[] } {
   const parsed = RedNoteImportSchema.parse(options.records);
   const records = (Array.isArray(parsed) ? parsed : 'notes' in parsed ? parsed.notes : parsed.results).slice(0, options.limit);
-  const sources: Source[] = [];
-  const hotspots: Hotspot[] = [];
-
-  for (const record of records) {
+  return mapSignalsToHotspots(records.map((record) => {
     const time = buildRedNoteTimeMetadata({
       publishedAt: record.published_at,
       updatedAt: record.updated_at,
       rednoteTimeText: record.rednote_time_text,
       fetchedAt: options.generatedAt
     });
-    const source = SourceSchema.parse({
-      id: `source-${randomUUID()}`,
-      run_id: options.runId,
-      source_url: record.url,
+    return {
+      channel: 'rednote',
+      runId: options.runId,
+      url: record.url,
       title: record.title,
-      snippet: record.snippet ?? record.content ?? '',
-      source_name: 'rednote',
-      published_at: time.published_at,
-      search_query: options.searchQuery,
-      time_window: `${options.timeWindowDays}d`,
-      raw: {
-        ...(record.raw ?? {}),
-        platform: 'rednote',
-        author: record.author,
-        author_url: record.author_url,
+      content: record.snippet ?? record.content ?? '',
+      author: record.author,
+      authorUrl: record.author_url,
+      publishedAt: time.published_at,
+      updatedAt: time.updated_at,
+      searchQuery: options.searchQuery,
+      timeWindowDays: options.timeWindowDays,
+      generatedAt: options.generatedAt,
+      intent: 'demand',
+      metrics: {
         likes: record.likes,
         collects: record.collects,
-        comments: record.comments,
-        tags: record.tags,
-        updated_at: time.updated_at,
+        comments: record.comments
+      },
+      tags: record.tags,
+      heatScore: heatScore(record),
+      raw: {
+        ...(record.raw ?? {}),
         rednote_time_text: time.rednote_time_text,
-        fetched_at: time.fetched_at,
         freshness_days: time.freshness_days,
         freshness_status: time.freshness_status
       }
-    });
-    sources.push(source);
-    hotspots.push(HotspotSchema.parse({
-      id: `hotspot-${randomUUID()}`,
-      run_id: options.runId,
-      title: record.title,
-      summary: record.snippet ?? record.content ?? '',
-      domain: 'rednote',
-      source_ids: [source.id],
-      canonical_url: record.url,
-      heat_score: heatScore(record),
-      search_query: options.searchQuery,
-      time_window: `${options.timeWindowDays}d`,
-      generated_at: options.generatedAt
-    }));
-  }
-
-  return { sources, hotspots };
+    };
+  }), options.limit);
 }
 
 function heatScore(record: RedNoteRecord): number {
