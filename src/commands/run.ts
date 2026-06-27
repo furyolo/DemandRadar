@@ -24,6 +24,10 @@ export function registerRunCommand(program: Command): void {
     .option('--rednote-query <query>', 'Search query label for imported RedNote records', 'RedNote imported records')
     .option('--goofish-json <path>', 'Import Goofish/Xianyu listings from a JSON file')
     .option('--goofish-query <query>', 'Search query label for imported Goofish records', 'Goofish imported records')
+    .option('--upwork-json <path>', 'Import Upwork jobs from a JSON file')
+    .option('--upwork-query <query>', 'Search query label for imported Upwork records', 'Upwork imported records')
+    .option('--fiverr-json <path>', 'Import Fiverr gigs, briefs, or seller records from a JSON file')
+    .option('--fiverr-query <query>', 'Search query label for imported Fiverr records', 'Fiverr imported records')
     .option('--skip-smart-search', 'Skip default Smart Search collection')
     .option('--cadence <cadence...>', 'Report cadence(s): daily weekly monthly')
     .option('--locale <locale...>', 'Report locale(s): en zh-CN')
@@ -36,6 +40,8 @@ export function registerRunCommand(program: Command): void {
           : llmClient;
       const redNoteRecords = options.rednoteJson ? JSON.parse(await readFile(options.rednoteJson, 'utf8')) : undefined;
       const goofishRecords = options.goofishJson ? JSON.parse(await readFile(options.goofishJson, 'utf8')) : undefined;
+      const upworkRecords = options.upworkJson ? JSON.parse(await readFile(options.upworkJson, 'utf8')) : undefined;
+      const fiverrRecords = options.fiverrJson ? JSON.parse(await readFile(options.fiverrJson, 'utf8')) : undefined;
       await runPipeline({
         date: options.date ?? todayUtcDate(),
         limit: Number(options.limit),
@@ -53,6 +59,10 @@ export function registerRunCommand(program: Command): void {
         redNoteSearchQuery: options.rednoteQuery,
         goofishRecords,
         goofishSearchQuery: options.goofishQuery,
+        upworkRecords,
+        upworkSearchQuery: options.upworkQuery,
+        fiverrRecords,
+        fiverrSearchQuery: options.fiverrQuery,
         smartSearchClient: options.fixture || options.skipSmartSearch ? undefined : new SmartSearchClient(),
         llmClient,
         supplyAnalysisLlmClient,

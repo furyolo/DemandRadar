@@ -105,6 +105,17 @@ npm run goofish:import -- --command uvx --command-arg goofish-cli --query "æ±‚è´
 
 Supported JSON shapes are arrays or `{ "items": [...] }` / `{ "listings": [...] }` / `{ "results": [...] }`, with optional `metadata`. Goofish records should include `url` or `item_id`, `title`, and optional `description`, `seller`, `price`, `location` / `city`, `want_count`, `view_count`, `favorite_count`, `tags`, and `intent`.
 
+Upwork jobs and Fiverr marketplace records can also enter through provider-neutral JSON imports:
+
+```bash
+npm run demandradar:run -- --upwork-json data/upwork-jobs.json --upwork-query "AI automation jobs" --skip-smart-search --locale zh-CN
+npm run demandradar:run -- --fiverr-json data/fiverr-gigs.json --fiverr-query "AI chatbot supply" --skip-smart-search --locale zh-CN
+```
+
+Upwork JSON supports arrays or `{ "jobs": [...] }` / `{ "items": [...] }` / `{ "results": [...] }`, with optional `metadata`. Records should include `url`, `link`, `job_id`, or `id`; `title`; and optional `description`, `client_name`, `budget`, `hourly_rate`, `client_country`, `payment_verified`, `proposal_count`, `client_total_spent`, `skills`, and `intent`. Upwork records default to `demand` because job postings are explicit paid tasks.
+
+Fiverr JSON supports arrays or `{ "gigs": [...] }` / `{ "items": [...] }` / `{ "results": [...] }`, with optional `metadata`. Records should include `url`, `gig_url`, `seller_url`, `gig_id`, or `id`; `title`; and optional `description`, `seller_name`, `price`, `min_price`, `max_price`, `budget`, `rating`, `reviews_count`, `orders_in_queue`, `seller_level`, `category`, `tags`, `record_type`, and `intent`. Fiverr gigs default to `supply`; `record_type: "brief"` or `"buyer_request"` is treated as demand.
+
 For local `goofish-cli` setup, prefer `uv tool install goofish-cli`, install Playwright Chrome when prompted, and use QR login:
 
 ```bash

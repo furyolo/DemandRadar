@@ -9,9 +9,11 @@ import { dedupeHotspots } from '../cleaning/dedupe.js';
 import { normalizeSource } from '../cleaning/normalize.js';
 import { rankHotspots } from '../cleaning/rankHotspots.js';
 import type { SmartSearchClient } from '../integrations/smartSearchClient.js';
+import { collectFiverrHotspots } from '../ingest/fiverrCollector.js';
 import { collectGoofishHotspots } from '../ingest/goofishCollector.js';
 import { collectHotspots } from '../ingest/hotspotCollector.js';
 import { collectRedNoteHotspots } from '../ingest/rednoteCollector.js';
+import { collectUpworkHotspots } from '../ingest/upworkCollector.js';
 import type { Demand, Hotspot, MarketEvidence, PipelineResult, ReportArtifact, ReportCadence, ReportLocale, Score, Source, SupplyDemandAnalysis } from './types.js';
 import { HotspotSchema, PipelineResultSchema, ReportArtifactSchema, RunSchema } from './types.js';
 import { generateDailyReport } from '../reports/dailyReport.js';
@@ -53,6 +55,10 @@ export interface RunPipelineOptions {
   redNoteSearchQuery?: string;
   goofishRecords?: unknown;
   goofishSearchQuery?: string;
+  upworkRecords?: unknown;
+  upworkSearchQuery?: string;
+  fiverrRecords?: unknown;
+  fiverrSearchQuery?: string;
 }
 
 export async function runPipeline(options: RunPipelineOptions): Promise<PipelineResult> {
@@ -366,8 +372,34 @@ async function collect(options: RunPipelineOptions, runId: string, limit: number
     collected.hotspots.push(...goofish.hotspots);
   }
 
-  if (!options.smartSearchClient && !options.redNoteRecords && !options.goofishRecords) {
-    throw new Error('runPipeline requires smartSearchClient, redNoteRecords, or goofishRecords unless fixtureData is provided');
+  if (options.upworkRecords) {
+    const upwork = collectUpworkHotspots({
+      runId,
+      records: options.upworkRecords,
+      searchQuery: options.upworkSearchQuery ?? 'Upwork imported records',
+      timeWindowDays: 30,
+      generatedAt,
+      limit
+    });
+    collected.sources.push(...upwork.sources);
+    collected.hotspots.push(...upwork.hotspots);
+  }
+
+  if (options.fiverrRecords) {
+    const fiverr = collectFiverrHotspots({
+      runId,
+      records: options.fiverrRecords,
+      searchQuery: options.fiverrSearchQuery ?? 'Fiverr imported records',
+      timeWindowDays: 30,
+      generatedAt,
+      limit
+    });
+    collected.sources.push(...fiverr.sources);
+    collected.hotspots.push(...fiverr.hotspots);
+  }
+
+  if (!options.smartSearchClient && !options.redNoteRecords && !options.goofishRecords && !options.upworkRecords && !options.fiverrRecords) {
+    throw new Error('runPipeline requires smartSearchClient, redNoteRecords, goofishRecords, upworkRecords, or fiverrRecords unless fixtureData is provided');
   }
 
   return collected;
