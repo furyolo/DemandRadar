@@ -1,6 +1,6 @@
 # DemandRadar
 
-DemandRadar is a Node.js / TypeScript CLI for turning recent internet signals into source-backed product opportunity briefs.
+DemandRadar is a Node.js / TypeScript CLI for turning recent internet signals into source-backed product opportunity briefs. Its product direction is evolving from demand discovery into opportunity discovery: identify paid tasks, judge whether the creator plus AI Agents can deliver them, and surface when external supply can help close a deal.
 
 ## Install
 
@@ -53,6 +53,15 @@ npm run demandradar -- list --run <run-id>
 npm run demandradar -- show <demand-id>
 npm run demandradar -- report 2026-06-18
 ```
+
+## Opportunity Positioning
+
+DemandRadar treats demand signals as candidate business opportunities only after they pass deliverability and deal-fit checks:
+
+- `upwork` and `fiverr` are paid-demand channels: buyer jobs, requests, budgets, required skills, urgency, and visible supply response are first-class evidence.
+- `goofish`, `reddit`, `github`, and similar channels can provide supply, validation, reusable technology, or missing context for fulfilling a paid task.
+- Reports should distinguish raw demand from actionable opportunities: whether the creator can deliver alone, with AI Agents, or only through third-party supply.
+- Default collection remains read-only. Applying to jobs, sending messages, ordering services, or changing platform state requires explicit human confirmation.
 
 ## Channel Imports
 
