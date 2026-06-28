@@ -114,6 +114,29 @@ npm run demandradar:run -- --fiverr-json data/fiverr-gigs.json --fiverr-query "A
 
 Upwork JSON supports arrays or `{ "jobs": [...] }` / `{ "items": [...] }` / `{ "results": [...] }`, with optional `metadata`. Records should include `url`, `link`, `job_id`, or `id`; `title`; and optional `description`, `client_name`, `budget`, `hourly_rate`, `client_country`, `payment_verified`, `proposal_count`, `client_total_spent`, `skills`, and `intent`. Upwork records default to `demand` because job postings are explicit paid tasks.
 
+If official Upwork API access is available, generate the Upwork JSON import with the read-only GraphQL adapter:
+
+```bash
+npm run upwork:import -- --query "AI automation" --limit 20 --output .tmp/upwork/jobs.json
+npm run demandradar:run -- --upwork-json .tmp/upwork/jobs.json --upwork-query "AI automation" --skip-smart-search --locale zh-CN
+```
+
+The adapter reads `config/.env` and uses either `UPWORK_ACCESS_TOKEN`, or `UPWORK_API_KEY`, `UPWORK_API_SECRET`, and the token JSON at `UPWORK_TOKEN_FILE` (`UPWORK_REFRESH_TOKEN` is still accepted as a manual override). The default endpoint is `https://api.upwork.com/graphql`, and the query uses Upwork's marketplace job postings GraphQL search in read-only mode. For advanced official filters, pass `--filter-json` or `--filter-file`:
+
+```bash
+npm run upwork:import -- --query "AI automation" --filter-json "{\"searchExpression_eq\":\"AI automation\",\"daysPosted_eq\":1}" --output .tmp/upwork/jobs.json
+```
+
+To get the first token file, set `UPWORK_API_KEY`, `UPWORK_API_SECRET`, `UPWORK_REDIRECT_URI`, and `UPWORK_TOKEN_FILE` in `config/.env`. `UPWORK_REDIRECT_URI` must exactly match the callback URL configured in the Upwork API app. For the default local callback, set the Upwork API app callback URL to `http://localhost:8787/upwork/callback`, then run:
+
+```bash
+npm run upwork:auth
+```
+
+Open the printed URL and authorize in Upwork. The script listens on localhost, receives the callback, exchanges the code, and writes the token response to `UPWORK_TOKEN_FILE` such as `.tmp/upwork-token.json`. `npm run upwork:import` can refresh from that token file directly; do not commit token files.
+
+If the callback URL is not local, `npm run upwork:auth` prints an authorization URL and exits. In that mode, copy the callback URL's `code` query parameter manually and run `npm run upwork:auth -- --code "<code-from-callback>"`.
+
 Fiverr JSON supports arrays or `{ "gigs": [...] }` / `{ "items": [...] }` / `{ "results": [...] }`, with optional `metadata`. Records should include `url`, `gig_url`, `seller_url`, `gig_id`, or `id`; `title`; and optional `description`, `seller_name`, `price`, `min_price`, `max_price`, `budget`, `rating`, `reviews_count`, `orders_in_queue`, `seller_level`, `category`, `tags`, `record_type`, and `intent`. Fiverr gigs default to `supply`; `record_type: "brief"` or `"buyer_request"` is treated as demand.
 
 For local `goofish-cli` setup, prefer `uv tool install goofish-cli`, install Playwright Chrome when prompted, and use QR login:
