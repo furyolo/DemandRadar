@@ -29,6 +29,42 @@
 
 当前 DemandRadar 不直接绑定这些项目的运行时依赖，先支持导入它们或类似工具导出的 JSON。真实账号登录、浏览器自动化、询价或发送消息属于高风险写操作，必须在独立边界内二次确认后接入。
 
+## Fiverr 参考调研
+
+本次接入前检索到的可参考项目和服务：
+
+- `KyuRish/fiverr-mcp-server`：GitHub 仓库创建于 2026-02-20，最新 release `v0.1.1` 发布于 2026-02-23；Python / MIT / PyPI 包，README 声明可通过 `uvx fiverr-mcp-server` 运行，提供 `search_gigs`、`get_gig_details`、`get_seller_profile`、`get_gig_reviews`、`list_categories`。来源：GitHub README 与 Exa 检索快照，`https://github.com/KyuRish/fiverr-mcp-server`。
+- MCP Market 的 `Fiverr Gig Scraper` 条目指向同一作者 `KyuRish`，描述其支持搜索 Fiverr gigs、seller、pricing、reviews，不需要官方 API key。来源：MCP Market，`https://mcpmarket.com/server/fiverr-gig-scraper`。
+- Apify `Fiverr Listings Scraper`：托管 Actor，页面显示可通过 Apify API / CLI / MCP 调用，价格为 `$1.50 / 1,000 results`，开发者 FalconScrape，页面显示最近 4 个月修改。来源：Apify，`https://apify.com/piotrv1001/fiverr-listings-scraper/api/mcp`。
+- Bright Data Fiverr MCP：商业化数据采集路径，适合重采集或代理能力要求高的场景，但会引入外部付费账号和供应商依赖。来源：搜索结果候选，`https://brightdata.com/ai/mcp-server/fiverr`。
+
+可直接复用的首选项是 `KyuRish/fiverr-mcp-server`，原因是它是专门面向 Fiverr 的 MCP server、无需官方 Fiverr API key、默认通过 `uvx` 运行，和 DemandRadar 的“外部只读采集器 → JSON 导入”架构匹配。限制也明确：仓库体量小、维护者单一、公开页抓取依赖 Fiverr 前端结构和 Cloudflare 行为；README 明示评论仅第一页、默认 2 秒 rate limit，并提示抓取可能违反 Fiverr 服务条款。
+
+Apify 路径更适合需要稳定托管、批量导出或商业 SLA 的场景，但需要 Apify token 和费用，不作为默认本地路径。
+
+## Fiverr 接入决策
+
+DemandRadar 通过 `npm run fiverr:import` 调用外部 `fiverr-mcp-server` 的只读 `search_gigs` MCP 工具，生成 `{ "gigs": [...] }` JSON，再交给 `--fiverr-json` 进入主流程。项目 core pipeline 不内置 Fiverr 页面抓取逻辑，也不引入新的 npm 依赖。
+
+推荐运行方式：
+
+```bash
+npm run fiverr:import -- --query "AI chatbot" --limit 20 --output .tmp/fiverr-2026-06-28/gigs.json
+npm run demandradar:run -- --fiverr-json .tmp/fiverr-2026-06-28/gigs.json --fiverr-query "AI chatbot" --skip-smart-search --locale zh-CN --db .tmp/fiverr-2026-06-28/demandradar.sqlite --reports-dir .tmp/fiverr-2026-06-28/reports --briefs-dir .tmp/fiverr-2026-06-28/briefs
+```
+
+可选搜索过滤：
+
+```bash
+npm run fiverr:import -- --query "AI chatbot" --limit 20 --category programming-tech --min-price 50 --max-price 500 --seller-level level_two_seller --sort-by best_selling --output .tmp/fiverr/gigs.json
+```
+
+当前只允许以下只读能力进入自动化采集链路：
+
+- `search_gigs`：按关键词搜索 Fiverr 服务 listing，作为供给、价格、评分、评论数和排队订单信号。
+
+暂不把 `get_seller_profile`、`get_gig_reviews` 或账号相关动作接入默认流程。前两者仍是只读，但会显著增加请求量，后续若需要补全供给质量证据，应先增加速率限制、缓存和测试。发送消息、下单、联系卖家等写操作不属于 DemandRadar 默认采集。
+
 ## 闲鱼接入决策
 
 首选接入 `fancyboi999/goofish-cli` 的只读命令输出。DemandRadar 通过 `npm run goofish:import` 调用外部 CLI，生成 `{ "items": [...] }` JSON，再交给 `--goofish-json` 进入主流程。

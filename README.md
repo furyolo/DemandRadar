@@ -139,6 +139,15 @@ If the callback URL is not local, `npm run upwork:auth` prints an authorization 
 
 Fiverr JSON supports arrays or `{ "gigs": [...] }` / `{ "items": [...] }` / `{ "results": [...] }`, with optional `metadata`. Records should include `url`, `gig_url`, `seller_url`, `gig_id`, or `id`; `title`; and optional `description`, `seller_name`, `price`, `min_price`, `max_price`, `budget`, `rating`, `reviews_count`, `orders_in_queue`, `seller_level`, `category`, `tags`, `record_type`, and `intent`. Fiverr gigs default to `supply`; `record_type: "brief"` or `"buyer_request"` is treated as demand.
 
+如果本机可用 `uvx`，可以通过社区只读 MCP server 生成 Fiverr JSON 导入文件：
+
+```bash
+npm run fiverr:import -- --query "AI chatbot" --limit 20 --output .tmp/fiverr/gigs.json
+npm run demandradar:run -- --fiverr-json .tmp/fiverr/gigs.json --fiverr-query "AI chatbot" --skip-smart-search --locale zh-CN
+```
+
+适配器会启动 `uvx fiverr-mcp-server`，调用 MCP `search_gigs` 工具，并写出规范化的 `{ "gigs": [...] }` JSON。可选过滤参数包括 `--category`、`--min-price`、`--max-price`、`--seller-level` 和 `--sort-by`。这条路径保持只读；下单、联系卖家或账号操作不属于默认采集边界。
+
 For local `goofish-cli` setup, prefer `uv tool install goofish-cli`, install Playwright Chrome when prompted, and use QR login:
 
 ```bash
