@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { and, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 import type { DemandRadarDatabase } from './database.js';
 import {
+  brokerageSupplyItems as brokerageSupplyItemsTable,
   demands as demandsTable,
+  fiverrGigDrafts as fiverrGigDraftsTable,
+  fiverrUploadEvents as fiverrUploadEventsTable,
   hotspots as hotspotsTable,
   marketEvidence as marketEvidenceTable,
   reports as reportsTable,
@@ -61,6 +65,63 @@ export interface ReportArtifactLookup {
   canonicalReportId?: string | null;
 }
 
+export type BrokerageSupplyStatus = 'new' | 'draft_generated' | 'asset_ready' | 'filling' | 'draft_saved' | 'published' | 'skipped' | 'stale';
+export type FiverrDraftStatus = 'draft_generated' | 'asset_ready' | 'filling' | 'draft_saved' | 'published' | 'skipped' | 'failed';
+export type FiverrUploadEventType = 'fill_started' | 'draft_saved' | 'published' | 'failed' | 'skipped' | 'note';
+
+export interface BrokerageSupplyItem {
+  id: string;
+  platform: string;
+  source_key: string;
+  source_url: string;
+  title: string;
+  seller: string | null;
+  price: string | null;
+  location: string | null;
+  raw: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+  seen_count: number;
+  status: BrokerageSupplyStatus;
+}
+
+export interface SaveBrokerageSupplyInput {
+  platform: 'goofish';
+  source_key: string;
+  source_url: string;
+  title: string;
+  seller?: string | null;
+  price?: string | number | null;
+  location?: string | null;
+  raw: Record<string, unknown>;
+  seenAt: string;
+}
+
+export interface FiverrGigDraftRecord {
+  id: string;
+  supply_item_id: string;
+  form_fill_map: Record<string, unknown>;
+  markdown_path: string;
+  markdown: string;
+  asset_paths: string[];
+  pricing_assumptions: Record<string, unknown>;
+  status: FiverrDraftStatus;
+  created_at: string;
+  updated_at: string;
+  supply?: BrokerageSupplyItem;
+}
+
+export interface SaveFiverrGigDraftInput {
+  supplyItemId: string;
+  formFillMap: Record<string, unknown>;
+  markdownPath: string;
+  markdown: string;
+  assetPaths?: string[];
+  pricingAssumptions: Record<string, unknown>;
+  status?: FiverrDraftStatus;
+  now: string;
+}
+
 export class DemandRadarRepository {
   constructor(private readonly db: DemandRadarDatabase) {}
 
@@ -110,6 +171,147 @@ export class DemandRadarRepository {
 
   saveReportArtifact(report: ReportArtifact): void {
     this.db.orm.insert(reportsTable).values(serializeReport(report)).run();
+  }
+
+  upsertBrokerageSupplyItem(input: SaveBrokerageSupplyInput): BrokerageSupplyItem {
+    const existing = this.db.orm
+      .select()
+      .from(brokerageSupplyItemsTable)
+      .where(eq(brokerageSupplyItemsTable.source_key, input.source_key))
+      .limit(1)
+      .get();
+
+    if (existing) {
+      this.db.orm
+        .update(brokerageSupplyItemsTable)
+        .set({
+          source_url: input.source_url,
+          title: input.title,
+          seller: input.seller ?? null,
+          price: stringifyNullable(input.price),
+          location: input.location ?? null,
+          raw: encode(input.raw),
+          last_seen_at: input.seenAt,
+          seen_count: existing.seen_count + 1,
+          status: existing.status
+        })
+        .where(eq(brokerageSupplyItemsTable.id, existing.id))
+        .run();
+      const updated = this.db.orm.select().from(brokerageSupplyItemsTable).where(eq(brokerageSupplyItemsTable.id, existing.id)).get();
+      if (!updated) throw new Error(`Failed to reload brokerage supply item ${existing.id}`);
+      return deserializeBrokerageSupply(updated);
+    }
+
+    const row = {
+      id: `supply-${randomUUID()}`,
+      platform: input.platform,
+      source_key: input.source_key,
+      source_url: input.source_url,
+      title: input.title,
+      seller: input.seller ?? null,
+      price: stringifyNullable(input.price),
+      location: input.location ?? null,
+      raw: encode(input.raw),
+      first_seen_at: input.seenAt,
+      last_seen_at: input.seenAt,
+      seen_count: 1,
+      status: 'new'
+    } satisfies typeof brokerageSupplyItemsTable.$inferInsert;
+    this.db.orm.insert(brokerageSupplyItemsTable).values(row).run();
+    return deserializeBrokerageSupply(row);
+  }
+
+  saveFiverrGigDraft(input: SaveFiverrGigDraftInput): FiverrGigDraftRecord {
+    const status = input.status ?? 'draft_generated';
+    const existing = this.db.orm
+      .select()
+      .from(fiverrGigDraftsTable)
+      .where(and(
+        eq(fiverrGigDraftsTable.supply_item_id, input.supplyItemId),
+        inArray(fiverrGigDraftsTable.status, ['draft_generated', 'asset_ready', 'filling', 'draft_saved', 'failed'])
+      ))
+      .orderBy(desc(fiverrGigDraftsTable.updated_at), desc(fiverrGigDraftsTable.id))
+      .limit(1)
+      .get();
+
+    if (existing) {
+      this.db.orm
+        .update(fiverrGigDraftsTable)
+        .set({
+          form_fill_map: encode(input.formFillMap),
+          markdown_path: input.markdownPath,
+          markdown: input.markdown,
+          asset_paths: encode(input.assetPaths ?? []),
+          pricing_assumptions: encode(input.pricingAssumptions),
+          status,
+          updated_at: input.now
+        })
+        .where(eq(fiverrGigDraftsTable.id, existing.id))
+        .run();
+      this.updateBrokerageSupplyStatus(input.supplyItemId, supplyStatusForDraftStatus(status));
+      const updated = this.db.orm.select().from(fiverrGigDraftsTable).where(eq(fiverrGigDraftsTable.id, existing.id)).get();
+      if (!updated) throw new Error(`Failed to reload Fiverr draft ${existing.id}`);
+      return this.attachSupply(deserializeFiverrGigDraft(updated));
+    }
+
+    const row = {
+      id: `fiverr-draft-${randomUUID()}`,
+      supply_item_id: input.supplyItemId,
+      form_fill_map: encode(input.formFillMap),
+      markdown_path: input.markdownPath,
+      markdown: input.markdown,
+      asset_paths: encode(input.assetPaths ?? []),
+      pricing_assumptions: encode(input.pricingAssumptions),
+      status,
+      created_at: input.now,
+      updated_at: input.now
+    } satisfies typeof fiverrGigDraftsTable.$inferInsert;
+    this.db.orm.insert(fiverrGigDraftsTable).values(row).run();
+    this.updateBrokerageSupplyStatus(input.supplyItemId, supplyStatusForDraftStatus(status));
+    return this.attachSupply(deserializeFiverrGigDraft(row));
+  }
+
+  listFiverrGigDrafts(statuses: FiverrDraftStatus[] = ['draft_generated', 'asset_ready', 'filling', 'draft_saved'], limit = 20): FiverrGigDraftRecord[] {
+    const rows = this.db.orm
+      .select()
+      .from(fiverrGigDraftsTable)
+      .where(statuses.length > 0 ? inArray(fiverrGigDraftsTable.status, statuses) : undefined)
+      .orderBy(fiverrGigDraftsTable.updated_at, fiverrGigDraftsTable.id)
+      .limit(limit)
+      .all();
+    return rows.map((row) => this.attachSupply(deserializeFiverrGigDraft(row)));
+  }
+
+  getFiverrGigDraft(draftId: string): FiverrGigDraftRecord | null {
+    const row = this.db.orm.select().from(fiverrGigDraftsTable).where(eq(fiverrGigDraftsTable.id, draftId)).get();
+    return row ? this.attachSupply(deserializeFiverrGigDraft(row)) : null;
+  }
+
+  recordFiverrUploadEvent(input: {
+    draftId: string;
+    eventType: FiverrUploadEventType;
+    status?: FiverrDraftStatus;
+    fiverrGigUrl?: string | null;
+    note?: string | null;
+    now: string;
+  }): void {
+    this.db.orm.insert(fiverrUploadEventsTable).values({
+      id: `fiverr-event-${randomUUID()}`,
+      draft_id: input.draftId,
+      event_type: input.eventType,
+      fiverr_gig_url: input.fiverrGigUrl ?? null,
+      note: input.note ?? null,
+      created_at: input.now
+    }).run();
+    if (input.status) {
+      this.db.orm
+        .update(fiverrGigDraftsTable)
+        .set({ status: input.status, updated_at: input.now })
+        .where(eq(fiverrGigDraftsTable.id, input.draftId))
+        .run();
+      const draft = this.getFiverrGigDraft(input.draftId);
+      if (draft?.supply_item_id) this.updateBrokerageSupplyStatus(draft.supply_item_id, supplyStatusForDraftStatus(input.status));
+    }
   }
 
   savePipelineResult(result: PipelineResult): void {
@@ -280,6 +482,51 @@ export class DemandRadarRepository {
       .all()
       .map((row) => SupplyDemandAnalysisSchema.parse(decode<unknown>(row.analysis)));
   }
+
+  private updateBrokerageSupplyStatus(supplyItemId: string, status: BrokerageSupplyStatus): void {
+    this.db.orm
+      .update(brokerageSupplyItemsTable)
+      .set({ status })
+      .where(eq(brokerageSupplyItemsTable.id, supplyItemId))
+      .run();
+  }
+
+  private attachSupply(draft: FiverrGigDraftRecord): FiverrGigDraftRecord {
+    const supply = this.db.orm.select().from(brokerageSupplyItemsTable).where(eq(brokerageSupplyItemsTable.id, draft.supply_item_id)).get();
+    return supply ? { ...draft, supply: deserializeBrokerageSupply(supply) } : draft;
+  }
+}
+
+function deserializeBrokerageSupply(row: typeof brokerageSupplyItemsTable.$inferSelect): BrokerageSupplyItem {
+  return {
+    ...row,
+    raw: decode<Record<string, unknown>>(row.raw),
+    status: row.status as BrokerageSupplyStatus
+  };
+}
+
+function deserializeFiverrGigDraft(row: typeof fiverrGigDraftsTable.$inferSelect): FiverrGigDraftRecord {
+  return {
+    ...row,
+    form_fill_map: decode<Record<string, unknown>>(row.form_fill_map),
+    asset_paths: decode<string[]>(row.asset_paths),
+    pricing_assumptions: decode<Record<string, unknown>>(row.pricing_assumptions),
+    status: row.status as FiverrDraftStatus
+  };
+}
+
+function supplyStatusForDraftStatus(status: FiverrDraftStatus): BrokerageSupplyStatus {
+  if (status === 'published') return 'published';
+  if (status === 'skipped') return 'skipped';
+  if (status === 'draft_saved') return 'draft_saved';
+  if (status === 'filling') return 'filling';
+  if (status === 'asset_ready') return 'asset_ready';
+  return 'draft_generated';
+}
+
+function stringifyNullable(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  return String(value);
 }
 
 function reportLookupConditions(lookup: ReportArtifactLookup) {

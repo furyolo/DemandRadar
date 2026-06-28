@@ -209,6 +209,99 @@ describe('DemandRadarRepository', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  it('dedupes brokerage supply by source key and reuses the active Fiverr draft', () => {
+    const db = openDatabase(':memory:');
+    const repository = new DemandRadarRepository(db);
+    const first = repository.upsertBrokerageSupplyItem({
+      platform: 'goofish',
+      source_key: 'goofish:item:123',
+      source_url: 'https://www.goofish.com/item?id=123',
+      title: 'Logo design service',
+      seller: 'seller-a',
+      price: '100',
+      location: 'Shanghai',
+      raw: { id: '123' },
+      seenAt: now
+    });
+    const second = repository.upsertBrokerageSupplyItem({
+      platform: 'goofish',
+      source_key: 'goofish:item:123',
+      source_url: 'https://www.goofish.com/item?id=123',
+      title: 'Logo design service updated',
+      seller: 'seller-a',
+      price: '120',
+      location: 'Shanghai',
+      raw: { id: '123', updated: true },
+      seenAt: '2026-06-19T00:00:00.000Z'
+    });
+
+    const draftA = repository.saveFiverrGigDraft({
+      supplyItemId: first.id,
+      formFillMap: { title_suffix_after_i_will: 'coordinate logo delivery' },
+      markdownPath: '.tmp/drafts.md',
+      markdown: 'draft a',
+      pricingAssumptions: { margin_percent: 40 },
+      now
+    });
+    const draftB = repository.saveFiverrGigDraft({
+      supplyItemId: second.id,
+      formFillMap: { title_suffix_after_i_will: 'coordinate logo delivery updated' },
+      markdownPath: '.tmp/drafts.md',
+      markdown: 'draft b',
+      pricingAssumptions: { margin_percent: 40 },
+      now: '2026-06-19T00:00:00.000Z'
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second.seen_count).toBe(2);
+    expect(draftB.id).toBe(draftA.id);
+    expect(repository.listFiverrGigDrafts(['draft_generated'], 10)).toHaveLength(1);
+
+    db.close();
+  });
+
+  it('keeps terminal Fiverr supply statuses out of the upload queue', () => {
+    const db = openDatabase(':memory:');
+    const repository = new DemandRadarRepository(db);
+    const supply = repository.upsertBrokerageSupplyItem({
+      platform: 'goofish',
+      source_key: 'goofish:item:published',
+      source_url: 'https://www.goofish.com/item?id=published',
+      title: 'Website setup',
+      raw: { id: 'published' },
+      seenAt: now
+    });
+    const draft = repository.saveFiverrGigDraft({
+      supplyItemId: supply.id,
+      formFillMap: { title_suffix_after_i_will: 'coordinate website setup' },
+      markdownPath: '.tmp/drafts.md',
+      markdown: 'draft',
+      pricingAssumptions: { margin_percent: 40 },
+      now
+    });
+
+    repository.recordFiverrUploadEvent({
+      draftId: draft.id,
+      eventType: 'published',
+      status: 'published',
+      now: '2026-06-19T00:00:00.000Z'
+    });
+    const seenAgain = repository.upsertBrokerageSupplyItem({
+      platform: 'goofish',
+      source_key: 'goofish:item:published',
+      source_url: 'https://www.goofish.com/item?id=published',
+      title: 'Website setup updated',
+      raw: { id: 'published', updated: true },
+      seenAt: '2026-06-20T00:00:00.000Z'
+    });
+
+    expect(seenAgain.status).toBe('published');
+    expect(repository.listFiverrGigDrafts(['draft_generated', 'asset_ready', 'draft_saved'], 10)).toHaveLength(0);
+    expect(repository.getFiverrGigDraft(draft.id)?.status).toBe('published');
+
+    db.close();
+  });
 });
 
 async function sourceFiles(paths: string[]): Promise<string[]> {

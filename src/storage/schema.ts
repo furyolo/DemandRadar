@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const runs = sqliteTable('runs', {
   id: text('id').primaryKey(),
@@ -115,6 +115,55 @@ export const reports = sqliteTable('reports', {
   index('idx_reports_canonical_report_id').on(table.canonical_report_id)
 ]);
 
+export const brokerageSupplyItems = sqliteTable('brokerage_supply_items', {
+  id: text('id').primaryKey(),
+  platform: text('platform').notNull(),
+  source_key: text('source_key').notNull(),
+  source_url: text('source_url').notNull(),
+  title: text('title').notNull(),
+  seller: text('seller'),
+  price: text('price'),
+  location: text('location'),
+  raw: text('raw').notNull(),
+  first_seen_at: text('first_seen_at').notNull(),
+  last_seen_at: text('last_seen_at').notNull(),
+  seen_count: integer('seen_count').notNull(),
+  status: text('status').notNull()
+}, (table) => [
+  uniqueIndex('idx_brokerage_supply_source_key').on(table.source_key),
+  index('idx_brokerage_supply_status').on(table.status),
+  index('idx_brokerage_supply_last_seen').on(table.last_seen_at)
+]);
+
+export const fiverrGigDrafts = sqliteTable('fiverr_gig_drafts', {
+  id: text('id').primaryKey(),
+  supply_item_id: text('supply_item_id').notNull().references(() => brokerageSupplyItems.id, { onDelete: 'cascade' }),
+  form_fill_map: text('form_fill_map').notNull(),
+  markdown_path: text('markdown_path').notNull(),
+  markdown: text('markdown').notNull(),
+  asset_paths: text('asset_paths').notNull(),
+  pricing_assumptions: text('pricing_assumptions').notNull(),
+  status: text('status').notNull(),
+  created_at: text('created_at').notNull(),
+  updated_at: text('updated_at').notNull()
+}, (table) => [
+  index('idx_fiverr_gig_drafts_supply_item_id').on(table.supply_item_id),
+  index('idx_fiverr_gig_drafts_status').on(table.status),
+  index('idx_fiverr_gig_drafts_updated_at').on(table.updated_at)
+]);
+
+export const fiverrUploadEvents = sqliteTable('fiverr_upload_events', {
+  id: text('id').primaryKey(),
+  draft_id: text('draft_id').notNull().references(() => fiverrGigDrafts.id, { onDelete: 'cascade' }),
+  event_type: text('event_type').notNull(),
+  fiverr_gig_url: text('fiverr_gig_url'),
+  note: text('note'),
+  created_at: text('created_at').notNull()
+}, (table) => [
+  index('idx_fiverr_upload_events_draft_id').on(table.draft_id),
+  index('idx_fiverr_upload_events_created_at').on(table.created_at)
+]);
+
 export const createSchemaSql = `
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
@@ -224,4 +273,51 @@ CREATE INDEX IF NOT EXISTS idx_supply_analyses_demand_id ON supply_analyses(dema
 CREATE INDEX IF NOT EXISTS idx_reports_run_id ON reports(run_id);
 CREATE INDEX IF NOT EXISTS idx_reports_cadence_locale_period ON reports(cadence, locale, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_reports_canonical_report_id ON reports(canonical_report_id);
+
+CREATE TABLE IF NOT EXISTS brokerage_supply_items (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  source_key TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  title TEXT NOT NULL,
+  seller TEXT,
+  price TEXT,
+  location TEXT,
+  raw TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  seen_count INTEGER NOT NULL,
+  status TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fiverr_gig_drafts (
+  id TEXT PRIMARY KEY,
+  supply_item_id TEXT NOT NULL REFERENCES brokerage_supply_items(id) ON DELETE CASCADE,
+  form_fill_map TEXT NOT NULL,
+  markdown_path TEXT NOT NULL,
+  markdown TEXT NOT NULL,
+  asset_paths TEXT NOT NULL,
+  pricing_assumptions TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fiverr_upload_events (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES fiverr_gig_drafts(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  fiverr_gig_url TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_brokerage_supply_source_key ON brokerage_supply_items(source_key);
+CREATE INDEX IF NOT EXISTS idx_brokerage_supply_status ON brokerage_supply_items(status);
+CREATE INDEX IF NOT EXISTS idx_brokerage_supply_last_seen ON brokerage_supply_items(last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_fiverr_gig_drafts_supply_item_id ON fiverr_gig_drafts(supply_item_id);
+CREATE INDEX IF NOT EXISTS idx_fiverr_gig_drafts_status ON fiverr_gig_drafts(status);
+CREATE INDEX IF NOT EXISTS idx_fiverr_gig_drafts_updated_at ON fiverr_gig_drafts(updated_at);
+CREATE INDEX IF NOT EXISTS idx_fiverr_upload_events_draft_id ON fiverr_upload_events(draft_id);
+CREATE INDEX IF NOT EXISTS idx_fiverr_upload_events_created_at ON fiverr_upload_events(created_at);
 `;
