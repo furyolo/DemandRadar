@@ -39,14 +39,28 @@
 - `私有供给来源索引` 必须存在，且闲鱼链接只留在私有区。
 - Markdown 中必须包含 `Required Gig Image Brief` 和 `Image Generation Prompt`。
 
-推荐先运行精选脚本，再把精选结果交给草稿导出器：
+默认推荐使用一键流程。它会先用 Fiverr 服务型查询池按日期轮换关键词做闲鱼采集和精选，再把精选结果交给草稿导出器：
+
+```powershell
+npm run goofish:fiverr
+```
+
+默认输出：
+
+- 精选供给：`.tmp/goofish-fiverr/curated-items.json`
+- 拒绝原因：`.tmp/goofish-fiverr/curated-rejected.json`
+- Fiverr 草稿：`.tmp/goofish-fiverr/curated-drafts.md`
+
+如果要手动拆开执行，也可以先运行精选脚本，再把精选结果交给草稿导出器：
 
 ```powershell
 npm run goofish:fiverr-curate -- --output .tmp/goofish-fiverr/curated-items.json --rejected-output .tmp/goofish-fiverr/curated-rejected.json
 npm run goofish:fiverr-drafts -- --query "精选可交付供给" --input .tmp/goofish-fiverr/curated-items.json --limit 12 --output .tmp/goofish-fiverr/curated-drafts.md
 ```
 
-`goofish:fiverr-curate` 默认会从 Fiverr 服务型查询池里按日期轮换关键词，例如 `n8n 自动化 代做`、`AI 智能体 工作流 代做`、`Vapi 语音智能体 搭建`、`RAG 知识库 聊天机器人 定制`、`Shopify 网站 搭建`、`GEO AEO SEO 优化`、`UGC 视频 广告 拍摄` 等，并输出拒绝原因报告。也可以处理已有采集文件：
+`goofish:fiverr` 和 `goofish:fiverr-curate` 在未传 `--query` 或 `--input` 时，都会从 Fiverr 服务型查询池里按日期轮换关键词，例如 `n8n 自动化 代做`、`AI 智能体 工作流 代做`、`Vapi 语音智能体 搭建`、`RAG 知识库 聊天机器人 定制`、`Shopify 网站 搭建`、`GEO AEO SEO 优化`、`UGC 视频 广告 拍摄` 等，并输出拒绝原因报告。传入 `--query` 时会改用手动指定的查询；传入 `--input` 时会筛选已有采集文件。
+
+处理已有采集文件：
 
 ```powershell
 npm run goofish:fiverr-curate -- --input .tmp/goofish-fiverr/raw-items.json --output .tmp/goofish-fiverr/curated-items.json
