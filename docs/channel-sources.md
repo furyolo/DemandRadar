@@ -17,6 +17,18 @@
 | Upwork | `upwork` | 需求 + 付费信号 + 供给响应 | 客户发布任务并给出预算，服务者投标承接；不能简单归为供给源。 |
 | Fiverr | `fiverr` | 需求 + 供给 | 服务 listing 体现供给，买家请求或任务上下文体现需求和付费意愿。 |
 
+## 小红书接入决策
+
+小红书 / RedNote 当前不绑定专用采集服务。默认方式是使用 Google Chrome 直接打开并只读浏览 RedNote 首页、搜索页或笔记页，把人工确认过的公开笔记整理成 DemandRadar RedNote JSON，再通过 `--rednote-json` 导入主流程。
+
+RedNote JSON 只承担数据交换边界，推荐字段为 `platform`、`url`、`title`、`content`、`author`、`author_url`、`published_at`、`updated_at`、`rednote_time_text`、`likes`、`collects`、`comments`、`tags`、`raw`。其中 `platform` 固定为 `rednote`，可见发布时间文本应保留到 `rednote_time_text`，便于后续新鲜度判断。
+
+推荐运行方式：
+
+```bash
+npm run demandradar:run -- --rednote-json .tmp/rednote-2026-06-29/notes.json --rednote-query "求推荐 家教" --skip-smart-search --locale zh-CN --db .tmp/rednote-2026-06-29/demandradar.sqlite --reports-dir .tmp/rednote-2026-06-29/reports --briefs-dir .tmp/rednote-2026-06-29/briefs
+```
+
 ## 闲鱼参考调研
 
 本次接入前检索到的可参考项目：
