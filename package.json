@@ -23,7 +23,6 @@
     "goofish:fiverr": "tsx scripts/run-goofish-fiverr.ts",
     "goofish:fiverr-curate": "tsx scripts/curate-goofish-fiverr.ts",
     "goofish:fiverr-drafts": "tsx scripts/export-goofish-fiverr-drafts.ts",
-    "goofish:fiverr-bridge": "tsx scripts/serve-fiverr-bridge.ts",
     "upwork:auth": "tsx scripts/upwork-auth.ts",
     "upwork:import": "tsx scripts/import-upwork-api.ts",
     "fiverr:import": "tsx scripts/import-fiverr-mcp.ts",

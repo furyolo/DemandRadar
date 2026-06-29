@@ -163,7 +163,7 @@ goofish auth status --format json
 
 See `docs/channel-sources.md` for the full Goofish installation, browser, and login troubleshooting notes.
 
-For the Goofish supply to Fiverr Gig draft workflow, including the separate local bridge command `npm run goofish:fiverr-bridge -- --port 3233 --token demandradar-local` and the Tampermonkey fill panel, see `docs/goofish-to-fiverr-upload.md`.
+For the Goofish supply to Fiverr Gig draft workflow and manual Fiverr upload checklist, see `docs/goofish-to-fiverr-upload.md`.
 
 Before adding a new channel collector, first search for existing skills, CLI tools, MCP servers, and GitHub projects that already cover that platform. Prefer adapting their exported JSON or MCP/CLI output into DemandRadar's channel import format before writing a new crawler.
 
