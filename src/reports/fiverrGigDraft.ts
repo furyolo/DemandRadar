@@ -4,6 +4,7 @@ export interface FiverrGigDraftOptions {
   query: string;
   maxItems?: number;
   marginPercent?: number;
+  minSourceMultiple?: number;
   cnyPerUsd?: number;
   payoutFeePercent?: number;
   fxLossPercent?: number;
@@ -38,6 +39,7 @@ interface DraftItem {
 }
 
 const DEFAULT_MARGIN_PERCENT = 40;
+const DEFAULT_MIN_SOURCE_MULTIPLE = 10;
 const DEFAULT_CNY_PER_USD = 7.2;
 const DEFAULT_PAYOUT_FEE_PERCENT = 20;
 const DEFAULT_FX_LOSS_PERCENT = 10;
@@ -56,7 +58,7 @@ export function renderFiverrGigDrafts(input: GoofishCliImportResult | { items: G
     '',
     `- 生成时间：${generatedAt}`,
     `- 闲鱼检索词：${options.query}`,
-    `- 定价假设：闲鱼成本 * (1 + ${normalized.marginPercent}%)，按 ${normalized.cnyPerUsd} CNY/USD 估算，再倒推 ${normalized.payoutFeePercent}% 提现/平台手续费与 ${normalized.fxLossPercent}% 汇率折损，并向上取整到 Fiverr 常见价格档。`,
+    `- 定价假设：按“闲鱼成本 * (1 + ${normalized.marginPercent}%)”与“净收入至少覆盖闲鱼成本 ${normalized.minSourceMultiple}x”两者较高值定价，按 ${normalized.cnyPerUsd} CNY/USD 估算，再倒推 ${normalized.payoutFeePercent}% 提现/平台手续费与 ${normalized.fxLossPercent}% 汇率折损，并向上取整到 Fiverr 常见价格档。`,
     '- 发布边界：以下“公开字段”可复制到 Fiverr；“私有供给来源索引”只供履约回查，不建议放进 Fiverr 公开页面。',
     '',
     sections
@@ -86,6 +88,7 @@ function normalizeDraftOptions(options: FiverrGigDraftOptions, fallbackLimit: nu
   return {
     maxItems: normalizePositiveInteger(options.maxItems, fallbackLimit),
     marginPercent: normalizePositiveNumber(options.marginPercent, DEFAULT_MARGIN_PERCENT),
+    minSourceMultiple: normalizePositiveNumber(options.minSourceMultiple, DEFAULT_MIN_SOURCE_MULTIPLE),
     cnyPerUsd: normalizePositiveNumber(options.cnyPerUsd, DEFAULT_CNY_PER_USD),
     payoutFeePercent: normalizePercent(options.payoutFeePercent, DEFAULT_PAYOUT_FEE_PERCENT),
     fxLossPercent: normalizePercent(options.fxLossPercent, DEFAULT_FX_LOSS_PERCENT)
@@ -94,13 +97,17 @@ function normalizeDraftOptions(options: FiverrGigDraftOptions, fallbackLimit: nu
 
 function buildDraftItem(
   item: GoofishImportItem,
-  options: { marginPercent: number; cnyPerUsd: number; payoutFeePercent: number; fxLossPercent: number; query: string }
+  options: { marginPercent: number; minSourceMultiple: number; cnyPerUsd: number; payoutFeePercent: number; fxLossPercent: number; query: string }
 ): DraftItem {
   const sourceCostCny = parseCnyPrice(item.price);
   const netRate = (1 - options.payoutFeePercent / 100) * (1 - options.fxLossPercent / 100);
   const baseUsd = sourceCostCny === null
     ? 25
-    : Math.max(5, (sourceCostCny * (1 + options.marginPercent / 100)) / options.cnyPerUsd / netRate);
+    : Math.max(
+      5,
+      (sourceCostCny * (1 + options.marginPercent / 100)) / options.cnyPerUsd / netRate,
+      (sourceCostCny * options.minSourceMultiple) / options.cnyPerUsd / netRate
+    );
   const basic = roundUpFiverrPrice(baseUsd);
   const serviceLabel = inferServiceLabel(item, options.query);
 
@@ -327,12 +334,13 @@ function isLikelySupply(item: GoofishImportItem): boolean {
 
 function inferServiceLabel(item: GoofishImportItem, query: string): string {
   const text = `${item.title} ${item.description ?? ''} ${query}`.toLowerCase();
-  if (/logo|标志|品牌|vi/.test(text)) return 'Logo and brand asset delivery';
+  if (/power\s*bi|powerbi|tableau|数据清洗|数据可视化|可视化|看板|报表|dax|powerquery/.test(text)) return 'data dashboard and analytics delivery';
+  if (/logo|标志|品牌|视觉识别|\bvi\b/.test(text)) return 'Logo and brand asset delivery';
   if (/网站|网页|wordpress|shopify|web|landing/.test(text)) return 'website setup or redesign coordination';
+  if (/chatbot|自动化|automation|bot|n8n|coze|dify|智能体|工作流|ai\s*(agent|automation|workflow|应用|智能体|工作流|自动化)/.test(text)) return 'AI automation delivery';
   if (/翻译|translate|translation/.test(text)) return 'translation and localization delivery';
   if (/剪辑|视频|video|shorts|reels/.test(text)) return 'video editing delivery';
   if (/ppt|presentation|简历|resume|文案|写作|copy/.test(text)) return 'document and content production';
-  if (/ai|chatbot|自动化|automation|bot/.test(text)) return 'AI automation delivery';
   return 'custom digital service delivery';
 }
 
@@ -343,8 +351,11 @@ function inferTags(item: GoofishImportItem, query: string): string[] {
     if (tags.length < 5 && !tags.includes(tag)) tags.push(tag);
   };
 
-  if (/logo|标志|品牌|vi/.test(text)) {
+  if (/logo|标志|品牌|视觉识别|\bvi\b/.test(text)) {
     add('logo design'); add('brand design');
+  }
+  if (/power\s*bi|powerbi|tableau|数据清洗|数据可视化|可视化|看板|报表|dax|powerquery/.test(text)) {
+    add('data visualization'); add('dashboard');
   }
   if (/网站|网页|wordpress|shopify|web|landing/.test(text)) {
     add('website'); add('web design');
@@ -353,7 +364,7 @@ function inferTags(item: GoofishImportItem, query: string): string[] {
   if (/剪辑|视频|video|shorts|reels/.test(text)) add('video editing');
   if (/ppt|presentation/.test(text)) add('presentation');
   if (/文案|写作|copy/.test(text)) add('copywriting');
-  if (/ai|chatbot|自动化|automation|bot/.test(text)) add('automation');
+  if (/chatbot|自动化|automation|bot|n8n|coze|dify|智能体|工作流|ai\s*(agent|automation|workflow|应用|智能体|工作流|自动化)/.test(text)) add('automation');
   add('project management');
   add('sourcing');
 
@@ -364,6 +375,7 @@ function categorySuggestion(draft: DraftItem): string {
   const label = draft.serviceLabel.toLowerCase();
   if (label.includes('website')) return 'Programming & Tech / Website Development';
   if (label.includes('logo') || label.includes('brand')) return 'Graphics & Design / Logo Design';
+  if (label.includes('data dashboard') || label.includes('analytics')) return 'Data / Data Visualization';
   if (label.includes('translation')) return 'Writing & Translation / Translation';
   if (label.includes('video')) return 'Video & Animation / Video Editing';
   if (label.includes('document') || label.includes('content')) return 'Writing & Translation / Business Writing';

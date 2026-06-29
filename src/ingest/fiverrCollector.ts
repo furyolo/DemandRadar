@@ -38,9 +38,9 @@ const FiverrRecordSchema = z.object({
 
 const FiverrImportSchema = z.union([
   z.array(FiverrRecordSchema),
-  z.object({ gigs: z.array(FiverrRecordSchema), metadata: z.record(z.string(), z.unknown()).optional() }).strict(),
-  z.object({ items: z.array(FiverrRecordSchema), metadata: z.record(z.string(), z.unknown()).optional() }).strict(),
-  z.object({ results: z.array(FiverrRecordSchema), metadata: z.record(z.string(), z.unknown()).optional() }).strict()
+  z.object({ gigs: z.array(FiverrRecordSchema), searches: z.array(z.record(z.string(), z.unknown())).optional(), metadata: z.record(z.string(), z.unknown()).optional() }).strict(),
+  z.object({ items: z.array(FiverrRecordSchema), searches: z.array(z.record(z.string(), z.unknown())).optional(), metadata: z.record(z.string(), z.unknown()).optional() }).strict(),
+  z.object({ results: z.array(FiverrRecordSchema), searches: z.array(z.record(z.string(), z.unknown())).optional(), metadata: z.record(z.string(), z.unknown()).optional() }).strict()
 ]);
 
 export type FiverrRecord = z.infer<typeof FiverrRecordSchema>;

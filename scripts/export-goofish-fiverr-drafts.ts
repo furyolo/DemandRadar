@@ -14,6 +14,7 @@ interface Args {
   commandArgs: string[];
   timeoutMs: number;
   marginPercent: number;
+  minSourceMultiple: number;
   cnyPerUsd: number;
   payoutFeePercent: number;
   fxLossPercent: number;
@@ -36,6 +37,7 @@ const markdown = renderFiverrGigDrafts(importResult, {
   query: args.query,
   maxItems: args.limit,
   marginPercent: args.marginPercent,
+  minSourceMultiple: args.minSourceMultiple,
   cnyPerUsd: args.cnyPerUsd,
   payoutFeePercent: args.payoutFeePercent,
   fxLossPercent: args.fxLossPercent
@@ -60,12 +62,14 @@ function persistDrafts(importResult: GoofishCliImportResult): { createdOrUpdated
       query: args.query,
       maxItems: args.limit,
       marginPercent: args.marginPercent,
+      minSourceMultiple: args.minSourceMultiple,
       cnyPerUsd: args.cnyPerUsd,
       payoutFeePercent: args.payoutFeePercent,
       fxLossPercent: args.fxLossPercent
     });
     const pricingAssumptions = {
       margin_percent: args.marginPercent,
+      min_source_multiple: args.minSourceMultiple,
       cny_per_usd: args.cnyPerUsd,
       payout_fee_percent: args.payoutFeePercent,
       fx_loss_percent: args.fxLossPercent
@@ -134,7 +138,7 @@ function parseArgs(raw: string[]): Args {
   if (!query) {
     throw new Error([
       'Usage: npm run goofish:fiverr-drafts -- --query <keyword> [--output .tmp/goofish-fiverr/drafts.md]',
-      '[--input data/goofish-items.json] [--limit 10] [--margin-percent 40] [--cny-per-usd 7.2]',
+      '[--input data/goofish-items.json] [--limit 10] [--margin-percent 40] [--min-source-multiple 10] [--cny-per-usd 7.2]',
       '[--payout-fee-percent 20] [--fx-loss-percent 10]',
       '[--db data/demandradar.sqlite] [--no-persist]',
       '[--command goofish] [--command-arg goofish-cli] [--timeout-ms 120000]'
@@ -150,6 +154,7 @@ function parseArgs(raw: string[]): Args {
     commandArgs,
     timeoutMs: parsePositiveInteger(values.get('timeout-ms'), 120_000),
     marginPercent: parsePositiveNumber(values.get('margin-percent'), 40),
+    minSourceMultiple: parsePositiveNumber(values.get('min-source-multiple'), 10),
     cnyPerUsd: parsePositiveNumber(values.get('cny-per-usd'), 7.2),
     payoutFeePercent: parsePercent(values.get('payout-fee-percent'), 20),
     fxLossPercent: parsePercent(values.get('fx-loss-percent'), 10),

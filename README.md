@@ -146,7 +146,13 @@ npm run fiverr:import -- --query "AI chatbot" --limit 20 --output .tmp/fiverr/gi
 npm run demandradar:run -- --fiverr-json .tmp/fiverr/gigs.json --fiverr-query "AI chatbot" --skip-smart-search --locale zh-CN
 ```
 
-适配器会启动 `uvx fiverr-mcp-server`，调用 MCP `search_gigs` 工具，并写出规范化的 `{ "gigs": [...] }` JSON。可选过滤参数包括 `--category`、`--min-price`、`--max-price`、`--seller-level` 和 `--sort-by`。这条路径保持只读；下单、联系卖家或账号操作不属于默认采集边界。
+也可以用批量关键词文件采样市场信号。输出会包含规范化的 `gigs` 和查询级 `searches` 摘要，例如 `total_results`、样本数量、最高评论数和卖家等级分布：
+
+```bash
+npm run fiverr:import -- --queries-file config/fiverr-keywords.example.json --limit 20 --sort-by best_selling --output .tmp/fiverr/market-sample.json
+```
+
+适配器会启动 `uvx fiverr-mcp-server`，调用 MCP `search_gigs` 工具，并写出规范化 JSON。可选过滤参数包括 `--category`、`--min-price`、`--max-price`、`--seller-level` 和 `--sort-by`。这条路径保持只读；下单、联系卖家或账号操作不属于默认采集边界。
 
 For local `goofish-cli` setup, prefer `uv tool install goofish-cli`, install Playwright Chrome when prompted, and use QR login:
 

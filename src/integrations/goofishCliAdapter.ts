@@ -48,6 +48,10 @@ export async function searchGoofishCli(options: GoofishCliSearchOptions): Promis
   const command = options.command ?? process.env.GOOFISH_CLI_COMMAND ?? 'goofish';
   const args = buildGoofishSearchArgs(options);
   const { stdout } = await execFileAsync(command, args, {
+    env: {
+      ...process.env,
+      PYTHONIOENCODING: process.env.PYTHONIOENCODING ?? 'utf-8'
+    },
     timeout: options.timeoutMs ?? 120_000,
     maxBuffer: 10 * 1024 * 1024
   });

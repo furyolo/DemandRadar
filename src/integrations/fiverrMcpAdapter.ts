@@ -42,6 +42,7 @@ export interface FiverrImportGig {
 
 export interface FiverrMcpImportResult {
   gigs: FiverrImportGig[];
+  searches: FiverrMcpSearchSummary[];
   metadata: {
     provider: 'fiverr-mcp-server';
     command: string;
@@ -50,6 +51,18 @@ export interface FiverrMcpImportResult {
     limit: number;
     generated_at: string;
   };
+}
+
+export interface FiverrMcpSearchSummary {
+  query: string;
+  category?: string;
+  sort_by?: string;
+  total_results?: number;
+  pages: number;
+  gigs_count: number;
+  top_reviews_count?: number;
+  top_seller_levels: string[];
+  generated_at: string;
 }
 
 interface JsonRpcResponse {
@@ -73,6 +86,7 @@ export async function searchFiverrMcp(options: FiverrMcpSearchOptions): Promise<
     client.notify('notifications/initialized', {});
 
     const gigs: FiverrImportGig[] = [];
+    const pagePayloads: unknown[] = [];
     let page = 1;
     let hasMore = true;
     while (gigs.length < options.limit && hasMore) {
@@ -81,6 +95,7 @@ export async function searchFiverrMcp(options: FiverrMcpSearchOptions): Promise<
         arguments: buildFiverrSearchArguments(options, page)
       });
       const parsed = extractMcpToolPayload(response);
+      pagePayloads.push(parsed);
       const pageGigs = normalizeFiverrMcpGigs(parsed);
       gigs.push(...pageGigs);
       hasMore = (isRecord(parsed) ? booleanValue(getByKeys(parsed, ['has_more', 'hasMore'])) : undefined) ?? pageGigs.length > 0;
@@ -90,6 +105,7 @@ export async function searchFiverrMcp(options: FiverrMcpSearchOptions): Promise<
 
     return {
       gigs: gigs.slice(0, options.limit),
+      searches: [summarizeFiverrSearch(options, pagePayloads, gigs.slice(0, options.limit))],
       metadata: {
         provider: 'fiverr-mcp-server',
         command,
@@ -106,6 +122,29 @@ export async function searchFiverrMcp(options: FiverrMcpSearchOptions): Promise<
 
 export function buildFiverrMcpServerArgs(options: FiverrMcpSearchOptions): string[] {
   return options.commandArgs && options.commandArgs.length > 0 ? options.commandArgs : ['fiverr-mcp-server'];
+}
+
+function summarizeFiverrSearch(options: FiverrMcpSearchOptions, pagePayloads: unknown[], gigs: FiverrImportGig[]): FiverrMcpSearchSummary {
+  const totalResults = pagePayloads
+    .map((payload) => isRecord(payload) ? numberValue(getByKeys(payload, ['total_results', 'totalResults', 'total'])) : undefined)
+    .find((value) => value !== undefined);
+  const topReviews = gigs.reduce<number | undefined>((current, gig) => {
+    if (gig.reviews_count === undefined) return current;
+    return current === undefined ? gig.reviews_count : Math.max(current, gig.reviews_count);
+  }, undefined);
+  const topSellerLevels = Array.from(new Set(gigs.flatMap((gig) => gig.seller_level ? [gig.seller_level] : []))).slice(0, 5);
+
+  return {
+    query: options.query,
+    category: options.category,
+    sort_by: options.sortBy,
+    total_results: totalResults,
+    pages: pagePayloads.length,
+    gigs_count: gigs.length,
+    top_reviews_count: topReviews,
+    top_seller_levels: topSellerLevels,
+    generated_at: new Date().toISOString()
+  };
 }
 
 export function buildFiverrSearchArguments(options: FiverrMcpSearchOptions, page = 1): Record<string, unknown> {

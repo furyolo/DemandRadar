@@ -13,6 +13,45 @@
 
 ## 1. 生成草稿并写入本地队列
 
+### Fiverr 适配性门禁
+
+不要直接用闲鱼首页的宽泛入口生成发布包，例如 `技能`、`猜你喜欢`、`课程`、`资料`。这类入口容易返回教程、网盘资源、模板、配方、书籍、招人贴或作业代做，通常不能直接发布到 Fiverr。
+
+优先使用可交付服务型检索词：
+
+- `n8n 自动化 代做`
+- `Power BI 可视化 看板 代做`
+- `logo 设计 接单`
+- `PPT 美化 代做`
+- `视频剪辑 接单`
+- `网站搭建 接单`
+
+生成发布包前必须先做一次供给过滤：
+
+- 保留：按需求交付成果的服务，如自动化工作流、数据看板、Logo/海报设计、PPT 制作、视频剪辑、网站或系统开发。
+- 过滤：课程、教程、资料包、模板、网盘、自动发货、配方、书籍、源码合集、作业/考试/论文、招人接单群、版权或授权不清的资源。
+- 对价格极低的服务，只能作为供给线索；接 Fiverr 订单前必须重新确认卖家可接单、报价、交付周期、版权/商用授权和修改范围。
+
+导出前抽查：
+
+- `## Draft` 的服务类型应和闲鱼标题一致。
+- `Category 建议` 不能被泛化成错误类目。
+- `私有供给来源索引` 必须存在，且闲鱼链接只留在私有区。
+- Markdown 中必须包含 `Required Gig Image Brief` 和 `Image Generation Prompt`。
+
+推荐先运行精选脚本，再把精选结果交给草稿导出器：
+
+```powershell
+npm run goofish:fiverr-curate -- --output .tmp/goofish-fiverr/curated-items.json --rejected-output .tmp/goofish-fiverr/curated-rejected.json
+npm run goofish:fiverr-drafts -- --query "精选可交付供给" --input .tmp/goofish-fiverr/curated-items.json --limit 12 --output .tmp/goofish-fiverr/curated-drafts.md
+```
+
+`goofish:fiverr-curate` 默认会从 Fiverr 服务型查询池里按日期轮换关键词，例如 `n8n 自动化 代做`、`AI 智能体 工作流 代做`、`Vapi 语音智能体 搭建`、`RAG 知识库 聊天机器人 定制`、`Shopify 网站 搭建`、`GEO AEO SEO 优化`、`UGC 视频 广告 拍摄` 等，并输出拒绝原因报告。也可以处理已有采集文件：
+
+```powershell
+npm run goofish:fiverr-curate -- --input .tmp/goofish-fiverr/raw-items.json --output .tmp/goofish-fiverr/curated-items.json
+```
+
 在项目根目录运行：
 
 ```powershell
@@ -23,9 +62,16 @@ npm run goofish:fiverr-drafts -- --query "网站搭建 接单" --limit 10
 
 - 输出 Markdown 草稿到 `.tmp/goofish-fiverr/drafts.md`。
 - 写入本地数据库 `data/demandradar.sqlite`。
+- 定价会按闲鱼供给价向上倒推：默认要求 Fiverr 净收入至少覆盖闲鱼标价 `10x`，再叠加平台手续费、提现 / 汇损假设并向上取整。闲鱼低价通常只是引流价，发布前仍需重新确认真实报价和范围。
 - 按闲鱼 `item_id` 或来源 URL 去重。
 - 同一个供给只保留一个活跃 Fiverr 草稿。
 - 已标记为 `published` 或 `skipped` 的供给不会再次进入待上传队列。
+
+可按服务风险调高或调低成本倍数下限：
+
+```powershell
+npm run goofish:fiverr-drafts -- --query "网站搭建 接单" --limit 10 --min-source-multiple 12
+```
 
 如果只想生成 Markdown，不写入数据库：
 
